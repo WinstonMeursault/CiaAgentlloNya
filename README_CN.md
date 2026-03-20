@@ -1,33 +1,64 @@
 # CiaAgentlloNya
 
-这是一个Telrgram猫娘Agent机器人。 Cia Agent llo～(∠·ω&lt; )⌒★ Nya~~~
+🌐 Languages: [![English](https://img.shields.io/badge/README-English-green)](README.md) [![中文](https://img.shields.io/badge/README-%E4%B8%AD%E6%96%87-blue)](README_CN.md)
+
+这是一个**个人Telrgram猫娘**Agent机器人。 Cia Agent llo~ (∠·ω< )⌒★ Nya~~~
 
 ## 配置
 
 在尝试运行本机器人前，您应当先配置config.yaml
 
-您可以适当修改configExmple.yaml，然后将其重命名为config.yaml，以完成配置
+您可以适当修改./config/configExmple.yaml，然后将其重命名为./config/config.yaml，以完成配置
 
 ```yaml
 Nekomimi:
+    API Provider: xxxxxx
+    Model: xxxxxx
+    Token: xx-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+    DefaultLanguage: xx
 
 TelegramBot:
     Token: xxxxxxxxxx:xxxxxxxx-xxxxxxxxxxxxxxxxxxxxxxxxxx
-    DefaultLanguage: CN
+    DefaultLanguage: xx
+
 ```
 
 ### Nekomimi
+
+#### API Provider
+
+请在这里填写在线LLM的API提供商名称，目前支持的有：
+
+- Opencode Zen
+
+#### Model
+
+请在这里填写调用的在线LLM模型名称，具体名称可能需要您查阅API提供商的文档
+
+#### Token
+
+请您在这里填写API提供商的Token
+
+#### DefaultLanguage
+
+您应当在这里填写调用在线LLM时使用的默认语言，目前支持的有：
+
+- CN    (简体)中文
 
 ### TelegramBot
 
 #### Token
 
-您应当在这里填写您Telegram Bot的Token(HTTP API)，格式如同示例一般
+您应当在这里填写您Telegram Bot的Token(HTTP API)
 
 如果您还没有在Telegram上注册Bot，请您利用Telegram中的@BotFather机器人完成注册，您可以/start后，执行/newbot，按照要求填写Bot名称和用户名后即可获得Token
 
 #### DefaultLanguage
 
-您应当在这里填写该Bot的默认语言，目前可选项仅为CN
+您应当在这里填写该Bot的默认语言，目前支持的有：
 
-本机器人使用的本地LLM对默认语言有针对性优化，对其他语言有一定的泛化能力
+- CN    (简体)中文
+
+## 运行
+
+目前本项目处于开发阶段，如果想尝试运行，您可以执行./bot.py来测试本机器人

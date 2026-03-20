@@ -210,4 +210,4 @@ __marimo__/
 .vscode/
 
 # Configuration
-config.yaml
+/config/config.yaml
