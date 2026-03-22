@@ -110,9 +110,9 @@ async def chatStream(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     asyncio.create_task(sendMessage(context, update.effective_chat.id, accumulatedText))
 
 async def chatDebug(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    asyncio.create_task(sendMessage(context, update.effective_chat.id, "Debug Mode\nInput: " + update.message.text + "\n\naskNekoOutput:"))
-    asyncio.create_task(chat(update, context))
-    asyncio.create_task(sendMessage(context, update.effective_chat.id, "askNekoStream Output:"))
+    context.bot.send_message(update.effective_chat.id, "Debug Mode\nInput: " + update.message.text + "\n\naskNekoOutput:")
+    await chat(update, context)
+    context.bot.send_message(update.effective_chat.id, "askNekoStream Output:")
     await chatStream(update, context)
     
 async def chatResponse(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
