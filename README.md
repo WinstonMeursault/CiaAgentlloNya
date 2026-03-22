@@ -15,12 +15,12 @@ Nekomimi:
     API Provider: xxxxxx
     Model: xxxxxx
     Token: xx-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-    DefaultLanguage: xx
+    Language: xx
 
 TelegramBot:
     Token: xxxxxxxxxx:xxxxxxxx-xxxxxxxxxxxxxxxxxxxxxxxxxx
-    DefaultLanguage: xx
-
+    Language: xx
+    StreamingResponse: False
 ```
 
 ### Nekomimi
@@ -39,9 +39,9 @@ Please specify the name of the online LLM model to be used. The exact name may r
 
 Please enter the API provider’s token here.
 
-#### DefaultLanguage
+#### Language
 
-Please specify the default language used when calling the online LLM. Currently supported:
+Please specify the language used when calling the online LLM. Currently supported:
 
 - CN    (Simplified) Chinese
 
@@ -53,11 +53,21 @@ Please enter your Telegram Bot token (HTTP API) here.
 
 If you have not yet registered a bot on Telegram, you can use the @BotFather bot to create one. After sending /start, run /newbot and follow the instructions to set the bot name and username, after which you will receive the token.
 
-#### DefaultLanguage
+#### Language
 
-Please specify the default language for the bot. Currently supported:
+Please specify the language for the bot. Currently supported:
 
 - CN    (Simplified) Chinese
+
+#### StreamingResponse
+
+The configuration for the bot's response type is as follows, Single Complete Response or Streamed Response.
+
+Currently, the bot may support both types, but streamed responses seem to have some bugs. Users may receive two identical responses simultaneously, and one of the messages may disappear after some time or under certain undefined conditions.
+
+Since the response content for this bot is generally not very long, it is recommended to set this to False, meaning the bot will default to sending a single complete response.
+
+This setting should be a boolean value. Please set it to True or False.
 
 ## Running
 

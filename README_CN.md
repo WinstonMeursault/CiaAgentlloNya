@@ -15,12 +15,12 @@ Nekomimi:
     API Provider: xxxxxx
     Model: xxxxxx
     Token: xx-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-    DefaultLanguage: xx
+    Language: xx
 
 TelegramBot:
     Token: xxxxxxxxxx:xxxxxxxx-xxxxxxxxxxxxxxxxxxxxxxxxxx
-    DefaultLanguage: xx
-
+    Language: xx
+    StreamingResponse: False
 ```
 
 ### Nekomimi
@@ -39,9 +39,9 @@ TelegramBot:
 
 请您在这里填写API提供商的Token
 
-#### DefaultLanguage
+#### Language
 
-您应当在这里填写调用在线LLM时使用的默认语言，目前支持的有：
+您应当在这里填写调用在线LLM时使用的语言，目前支持的有：
 
 - CN    (简体)中文
 
@@ -53,11 +53,21 @@ TelegramBot:
 
 如果您还没有在Telegram上注册Bot，请您利用Telegram中的@BotFather机器人完成注册，您可以/start后，执行/newbot，按照要求填写Bot名称和用户名后即可获得Token
 
-#### DefaultLanguage
+#### Language
 
-您应当在这里填写该Bot的默认语言，目前支持的有：
+您应当在这里填写该Bot的语言，目前支持的有：
 
 - CN    (简体)中文
+
+#### StreamingResponse
+
+配置该机器人响应时是单次完整响应，还是流式响应
+
+注意，流式响应似乎有一些bug，用户可能同时收到两条相同的响应，在一定时间后或某些没有被确定的条件后，第一条消息会消失
+
+又考虑到本机器人响应内容一般不会太长，建议该项设定为False，即默认进行单次完整响应
+
+本条设置为bool值，即您应当填写True/False
 
 ## 运行
 

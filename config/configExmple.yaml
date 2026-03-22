@@ -1,9 +1,10 @@
 Nekomimi:
-    API Provider: Opencode Zen
-    Model: gpt-5-nano
+    API Provider: xxxxxx
+    Model: xxxxxx
     Token: xx-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-    DefaultLanguage: CN
+    Language: xx
 
 TelegramBot:
     Token: xxxxxxxxxx:xxxxxxxx-xxxxxxxxxxxxxxxxxxxxxxxxxx
-    DefaultLanguage: CN
+    Language: xx
+    StreamingResponse: False

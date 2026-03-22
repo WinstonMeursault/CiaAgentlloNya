@@ -11,7 +11,7 @@ with open('./config/config.yaml', 'r') as yamlConfig:
 with open('./config/inf.yaml', 'r') as yamlInf:
     inf = yamlSafeLoad(yamlInf)
     
-if nekomimiConfig['DefaultLanguage'] == 'CN':
+if nekomimiConfig['Language'] == 'CN':
     with open('./config/prompt_CN.yaml', 'r') as yamlPrompt:
         nekomimiPrompt = yamlSafeLoad(yamlPrompt)
         

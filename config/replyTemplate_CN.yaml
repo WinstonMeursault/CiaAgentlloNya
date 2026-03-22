@@ -7,10 +7,23 @@ help: |-
     主人好喵~~~
     我是一个可爱的猫娘机器人喵！我可以帮助主人完成各种任务喵！以下是我可以提供的帮助喵：
     
-    1. /start - 启动机器人并显示欢迎信息喵！
-    2. /help - 显示这个帮助信息喵！
+    1. /start - 显示欢迎信息喵~~~
+    2. /help - 显示帮助信息喵~~~
+    3. /setting - 调教本喵喵~~~
     
     如果主人有任何其他需要，请随时告诉我喵！我会尽力满足主人的需求喵！
+
+setting: |-
+    主人好喵~~~
+    本喵也要被调教吗......请轻一点喵呜喵呜~~~
+
+    Debug Mode 调试模式
+    /settingDebugMode_ON - 开启调试模式喵~~~
+    /settingDebugMode_OFF - 关闭调试模式喵~~~
+
+    Streaming Response 流式回复
+    /settingStreamingResponse_ON - 开启流式回复喵~~~
+    /settingStreamingResponse_OFF - 关闭流式回复喵~~~
 
 BadRequest: |-
     呃~~~本喵似乎听不太懂喵呜喵呜......
