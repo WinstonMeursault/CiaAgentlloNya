@@ -2,7 +2,7 @@ from typing import Optional, AsyncGenerator
 from json import loads as jsonLoads, JSONDecodeError
 
 import aiohttp
-from loguru import nekoLogger
+from loguru import logger as nekoLogger
 from yaml import safe_load as yamlSafeLoad
 from requests import post as requestsPost
 
@@ -13,7 +13,7 @@ nekoLogger.add(
     compression="gz",
     encoding="utf-8",
     enqueue=True,
-    format="{time:YYYY-MM-DD at HH:mm:ss, UTC Z} | Logging Function: neko::{function} | {level} | {message}",
+    format="{time:YYYY-MM-DD at HH:mm:ss:SSS, UTC Z} | Logging Function: neko::{function} | {level} | {message}",
 )
 
 try:

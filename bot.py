@@ -1,7 +1,7 @@
 import asyncio
 from time import time
 
-from loguru import botLogger
+from loguru import logger as botLogger
 from yaml import safe_load as yamlSafeLoad, dump as yamlDump
 from telegram import Update
 from telegram.ext import (
@@ -22,7 +22,7 @@ botLogger.add(
     compression="gz",
     encoding="utf-8",
     enqueue=True,
-    format="{time:YYYY-MM-DD at HH:mm:ss, UTC Z} | Logging Function: bot::{function} | {level} | {message}",
+    format="{time:YYYY-MM-DD at HH:mm:ss:SSS, UTC Z} | Logging Function: bot::{function} | {level} | {message}",
 )
 
 botLogger.info("Bot Start.")
