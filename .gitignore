@@ -211,3 +211,9 @@ __marimo__/
 
 # Configuration
 /config/config.yaml
+
+# Logs
+/logs/*
+
+# Chat history
+/chatHistory/*

@@ -27,3 +27,6 @@ setting: |-
 
 BadRequest: |-
     呃~~~本喵似乎听不太懂喵呜喵呜......
+
+UnexpectedError: |-
+    本喵似乎坏掉了喵......
