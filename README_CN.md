@@ -35,11 +35,11 @@ TelegramBot:
 
 请在这里填写调用的在线LLM模型名称，具体名称可能需要您查阅API提供商的文档
 
-#### Token
+#### Token (API Provider)
 
 请您在这里填写API提供商的Token
 
-#### Language
+#### Language (API Provider)
 
 您应当在这里填写调用在线LLM时使用的语言，目前支持的有：
 
@@ -47,13 +47,13 @@ TelegramBot:
 
 ### TelegramBot
 
-#### Token
+#### Token (TelegramBot)
 
 您应当在这里填写您Telegram Bot的Token(HTTP API)
 
 如果您还没有在Telegram上注册Bot，请您利用Telegram中的@BotFather机器人完成注册，您可以/start后，执行/newbot，按照要求填写Bot名称和用户名后即可获得Token
 
-#### Language
+#### Language (TelegramBot)
 
 您应当在这里填写该Bot的语言，目前支持的有：
 

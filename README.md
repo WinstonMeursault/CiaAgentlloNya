@@ -35,11 +35,11 @@ Please specify the name of the online LLM API provider here. Currently supported
 
 Please specify the name of the online LLM model to be used. The exact name may require consulting the API provider’s documentation.
 
-#### Token
+#### Token (API Provider)
 
 Please enter the API provider’s token here.
 
-#### Language
+#### Language (API Provider)
 
 Please specify the language used when calling the online LLM. Currently supported:
 
@@ -47,13 +47,13 @@ Please specify the language used when calling the online LLM. Currently supporte
 
 ### TelegramBot
 
-#### Token
+#### Token (TelegramBot)
 
 Please enter your Telegram Bot token (HTTP API) here.
 
 If you have not yet registered a bot on Telegram, you can use the @BotFather bot to create one. After sending /start, run /newbot and follow the instructions to set the bot name and username, after which you will receive the token.
 
-#### Language
+#### Language (TelegramBot)
 
 Please specify the language for the bot. Currently supported:
 
