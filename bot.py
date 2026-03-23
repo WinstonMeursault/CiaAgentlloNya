@@ -25,9 +25,10 @@ logger.add(
     format="{time:YYYY-MM-DD at HH:mm:ss:SSS, UTC Z} | Logging Function: {extra[module]}::{function} | {level} | {message}",
 )
 
-class bot():
+
+class bot:
     def __init__(self):
-        self.logger = logger.bind(module = "bot")
+        self.logger = logger.bind(module="bot")
         self.debugMode = False
 
         self.logger.info("Bot Start.")
@@ -44,7 +45,7 @@ class bot():
         except Exception as e:
             self.logger.error("Failed to load configuration: " + str(e))
             raise e
-        
+
         self.neko = neko()
 
     async def __sendMessage(
@@ -66,19 +67,22 @@ class bot():
                 self.logger.warning("Chat ID: " + str(chatID) + ", Message: " + text)
             except BadRequest as e:
                 asyncio.create_task(
-                    self.__sendMessage(context, chatID, self.botReplyTemplate["BadRequest"])
+                    self.__sendMessage(
+                        context, chatID, self.botReplyTemplate["BadRequest"]
+                    )
                 )
                 self.logger.error("Bad request error: " + str(e))
                 self.logger.error("Chat ID: " + str(chatID) + ", Message: " + text)
                 break
             except Exception as e:
                 asyncio.create_task(
-                    self.__sendMessage(self, context, chatID, self.botReplyTemplate["BadRequest"])
+                    self.__sendMessage(
+                        self, context, chatID, self.botReplyTemplate["BadRequest"]
+                    )
                 )
                 self.logger.error("Unexpected error: " + str(e))
                 self.logger.error("Chat ID: " + str(chatID) + ", Message: " + text)
                 break
-
 
     async def __sendStreamingMessage(
         self, context: ContextTypes.DEFAULT_TYPE, chatID: int, draftID: int, text: str
@@ -88,7 +92,9 @@ class bot():
                 await context.bot.send_message_draft(
                     chat_id=chatID, draft_id=draftID, text=text
                 )
-                self.logger.info("Streaming message sent successfully. Message: " + text)
+                self.logger.info(
+                    "Streaming message sent successfully. Message: " + text
+                )
                 break
             except RetryAfter as e:
                 self.logger.warning(
@@ -102,42 +108,54 @@ class bot():
                 break
             except BadRequest as e:
                 asyncio.create_task(
-                    self.__sendMessage(context, chatID, self.botReplyTemplate["BadRequest"])
+                    self.__sendMessage(
+                        context, chatID, self.botReplyTemplate["BadRequest"]
+                    )
                 )
                 self.logger.error("Bad request error: " + str(e))
                 self.logger.error("Chat ID: " + str(chatID) + ", Message: " + text)
                 break
             except Exception as e:
                 asyncio.create_task(
-                    self.__sendMessage(context, chatID, self.botReplyTemplate["BadRequest"])
+                    self.__sendMessage(
+                        context, chatID, self.botReplyTemplate["BadRequest"]
+                    )
                 )
                 self.logger.error("Unexpected error: " + str(e))
                 self.logger.error("Chat ID: " + str(chatID) + ", Message: " + text)
                 break
 
-
     async def __start(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         asyncio.create_task(
-            self.__sendMessage(context, update.effective_chat.id, self.botReplyTemplate["start"])
+            self.__sendMessage(
+                context, update.effective_chat.id, self.botReplyTemplate["start"]
+            )
         )
-        self.logger.info("Handled /start command. Chat ID: " + str(update.effective_chat.id))
-
+        self.logger.info(
+            "Handled /start command. Chat ID: " + str(update.effective_chat.id)
+        )
 
     async def __help(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         asyncio.create_task(
-            self.__sendMessage(context, update.effective_chat.id, self.botReplyTemplate["help"])
+            self.__sendMessage(
+                context, update.effective_chat.id, self.botReplyTemplate["help"]
+            )
         )
-        self.logger.info("Handled /help command. Chat ID: " + str(update.effective_chat.id))
+        self.logger.info(
+            "Handled /help command. Chat ID: " + str(update.effective_chat.id)
+        )
 
-
-    async def __setting(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    async def __setting(
+        self, update: Update, context: ContextTypes.DEFAULT_TYPE
+    ) -> None:
         asyncio.create_task(
-            self.__sendMessage(context, update.effective_chat.id, self.botReplyTemplate["setting"])
+            self.__sendMessage(
+                context, update.effective_chat.id, self.botReplyTemplate["setting"]
+            )
         )
         self.logger.info(
             "Handled /setting command. Chat ID: " + str(update.effective_chat.id)
         )
-
 
     async def __settingStreamingResponse_ON(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
@@ -146,11 +164,15 @@ class bot():
             self.botConfig["StreamingResponse"] = True
 
             asyncio.create_task(
-                    self.__sendMessage(context, update.effective_chat.id, "流式回复已开启喵~~")
+                self.__sendMessage(
+                    context, update.effective_chat.id, "流式回复已开启喵~~"
                 )
+            )
 
             with open("./config/config.yaml", "w", encoding="utf-8") as f:
-                yamlDump(self.botConfig, f, default_flow_style=False, allow_unicode=True)
+                yamlDump(
+                    self.botConfig, f, default_flow_style=False, allow_unicode=True
+                )
 
             self.logger.info(
                 "Streaming response enabled. Chat ID: " + str(update.effective_chat.id)
@@ -159,10 +181,11 @@ class bot():
             self.logger.error("Failed to enable streaming response: " + str(e))
             asyncio.create_task(
                 self.__sendMessage(
-                    context, update.effective_chat.id, self.botReplyTemplate["UnexpectedError"]
+                    context,
+                    update.effective_chat.id,
+                    self.botReplyTemplate["UnexpectedError"],
                 )
             )
-
 
     async def __settingStreamingResponse_OFF(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
@@ -171,11 +194,15 @@ class bot():
             self.botConfig["StreamingResponse"] = False
 
             asyncio.create_task(
-                self.__sendMessage(context, update.effective_chat.id, "流式回复已关闭喵~~")
+                self.__sendMessage(
+                    context, update.effective_chat.id, "流式回复已关闭喵~~"
+                )
             )
 
             with open("./config/config.yaml", "w", encoding="utf-8") as f:
-                yamlDump(self.botConfig, f, default_flow_style=False, allow_unicode=True)
+                yamlDump(
+                    self.botConfig, f, default_flow_style=False, allow_unicode=True
+                )
 
             self.logger.info(
                 "Streaming response disabled. Chat ID: " + str(update.effective_chat.id)
@@ -184,10 +211,11 @@ class bot():
             self.logger.error("Failed to disable streaming response: " + str(e))
             asyncio.create_task(
                 self.__sendMessage(
-                    context, update.effective_chat.id, self.botReplyTemplate["UnexpectedError"]
+                    context,
+                    update.effective_chat.id,
+                    self.botReplyTemplate["UnexpectedError"],
                 )
             )
-
 
     async def __settingDebugMode_ON(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
@@ -196,18 +224,23 @@ class bot():
             self.debugMode = True
 
             asyncio.create_task(
-                self.__sendMessage(context, update.effective_chat.id, "调试模式已开启喵~~")
+                self.__sendMessage(
+                    context, update.effective_chat.id, "调试模式已开启喵~~"
+                )
             )
 
-            self.logger.info("Debug mode enabled. Chat ID: " + str(update.effective_chat.id))
+            self.logger.info(
+                "Debug mode enabled. Chat ID: " + str(update.effective_chat.id)
+            )
         except Exception as e:
             self.logger.error("Failed to enable debug mode: " + str(e))
             asyncio.create_task(
                 self.__sendMessage(
-                    context, update.effective_chat.id, self.botReplyTemplate["UnexpectedError"]
+                    context,
+                    update.effective_chat.id,
+                    self.botReplyTemplate["UnexpectedError"],
                 )
             )
-
 
     async def __settingDebugMode_OFF(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
@@ -216,24 +249,31 @@ class bot():
             self.debugMode = False
 
             asyncio.create_task(
-                self.__sendMessage(context, update.effective_chat.id, "调试模式已关闭喵~~")
+                self.__sendMessage(
+                    context, update.effective_chat.id, "调试模式已关闭喵~~"
+                )
             )
 
-            self.logger.info("Debug mode disabled. Chat ID: " + str(update.effective_chat.id))
+            self.logger.info(
+                "Debug mode disabled. Chat ID: " + str(update.effective_chat.id)
+            )
         except Exception as e:
             self.logger.error("Failed to disable debug mode: " + str(e))
             asyncio.create_task(
                 self.__sendMessage(
-                    context, update.effective_chat.id, self.botReplyTemplate["UnexpectedError"]
+                    context,
+                    update.effective_chat.id,
+                    self.botReplyTemplate["UnexpectedError"],
                 )
             )
 
-
     async def __chat(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         response = self.neko.askNeko(update.message.text)
-        
-        asyncio.create_task(self.__sendMessage(context, update.effective_chat.id, response))
-        
+
+        asyncio.create_task(
+            self.__sendMessage(context, update.effective_chat.id, response)
+        )
+
         self.logger.info(
             "Handled chat message. Chat ID: "
             + str(update.effective_chat.id)
@@ -241,8 +281,9 @@ class bot():
             + update.message.text
         )
 
-
-    async def __chatStream(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    async def __chatStream(
+        self, update: Update, context: ContextTypes.DEFAULT_TYPE
+    ) -> None:
         steamID = int(round(time() * 1000))
         accumulatedText = ""
         buffer = ""
@@ -274,7 +315,9 @@ class bot():
                 )
             )
 
-        asyncio.create_task(self.__sendMessage(context, update.effective_chat.id, accumulatedText))
+        asyncio.create_task(
+            self.__sendMessage(context, update.effective_chat.id, accumulatedText)
+        )
 
         self.logger.info(
             "Handled streaming chat message. Chat ID: "
@@ -283,15 +326,18 @@ class bot():
             + update.message.text
         )
 
-
-    async def __chatDebug(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    async def __chatDebug(
+        self, update: Update, context: ContextTypes.DEFAULT_TYPE
+    ) -> None:
         await context.bot.send_message(
             update.effective_chat.id,
             "Debug Mode\nInput: " + update.message.text + "\n\naskNekoOutput:",
         )
         await self.__chat(update, context)
 
-        await context.bot.send_message(update.effective_chat.id, "askNekoStream Output:")
+        await context.bot.send_message(
+            update.effective_chat.id, "askNekoStream Output:"
+        )
         await self.__chatStream(update, context)
 
         self.logger.info(
@@ -301,8 +347,9 @@ class bot():
             + update.message.text
         )
 
-
-    async def __chatResponse(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    async def __chatResponse(
+        self, update: Update, context: ContextTypes.DEFAULT_TYPE
+    ) -> None:
         self.logger.info(
             "Preparing to respond to chat message. Chat ID: "
             + str(update.effective_chat.id)
@@ -318,38 +365,47 @@ class bot():
             else:
                 await self.__chat(update, context)
 
-
     def run(self) -> None:
-        self.logger.info("Entering main function of bot.")
+        try:
+            self.application = Application.builder().token(self.botConfig["Token"]).build()
 
-        self.application = Application.builder().token(self.botConfig["Token"]).build()
+            self.logger.info("Telegram bot initialized successfully.")
 
-        self.logger.info("Telegram bot initialized successfully.")
+            self.application.add_handler(CommandHandler("start", self.__start))
+            self.application.add_handler(CommandHandler("help", self.__help))
 
-        self.application.add_handler(CommandHandler("start", self.__start))
-        self.application.add_handler(CommandHandler("help", self.__help))
+            self.application.add_handler(CommandHandler("setting", self.__setting))
+            self.application.add_handler(
+                CommandHandler(
+                    "settingStreamingResponse_ON", self.__settingStreamingResponse_ON
+                )
+            )
+            self.application.add_handler(
+                CommandHandler(
+                    "settingStreamingResponse_OFF", self.__settingStreamingResponse_OFF
+                )
+            )
+            self.application.add_handler(
+                CommandHandler("settingDebugMode_ON", self.__settingDebugMode_ON)
+            )
+            self.application.add_handler(
+                CommandHandler("settingDebugMode_OFF", self.__settingDebugMode_OFF)
+            )
 
-        self.application.add_handler(CommandHandler("setting", self.__setting))
-        self.application.add_handler(
-            CommandHandler("settingStreamingResponse_ON", self.__settingStreamingResponse_ON)
-        )
-        self.application.add_handler(
-            CommandHandler("settingStreamingResponse_OFF", self.__settingStreamingResponse_OFF)
-        )
-        self.application.add_handler(CommandHandler("settingDebugMode_ON", self.__settingDebugMode_ON))
-        self.application.add_handler(
-            CommandHandler("settingDebugMode_OFF", self.__settingDebugMode_OFF)
-        )
+            self.application.add_handler(
+                MessageHandler(filters.TEXT & ~filters.COMMAND, self.__chatResponse)
+            )
 
-        self.application.add_handler(
-            MessageHandler(filters.TEXT & ~filters.COMMAND, self.__chatResponse)
-        )
+            self.logger.info("Handlers added successfully. Starting polling...")
 
-        self.logger.info("Handlers added successfully. Starting polling...")
+            self.application.run_polling(allowed_updates=Update.ALL_TYPES)
 
-        self.application.run_polling(allowed_updates=Update.ALL_TYPES)
-
-        self.logger.info("Polling started successfully.")
+            self.logger.info("Polling started successfully.")
+        except TimedOut as e:
+            self.logger.error("Failed to start bot due to timeout: " + str(e))
+        except Exception as e:
+            self.logger.error("Failed to start bot due to unexpected error: " + str(e))
+            raise e
 
 
 if __name__ == "__main__":
