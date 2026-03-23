@@ -6,10 +6,13 @@ from loguru import logger
 from yaml import safe_load as yamlSafeLoad
 from requests import post as requestsPost
 
+from chatHistory import ChatHistory
+
 
 class neko:
-    def __init__(self):
+    def __init__(self, chatHistory: ChatHistory) -> None:
         self.logger = logger.bind(module="neko")
+        self.chatHistory = chatHistory
 
         try:
             with open("./config/config.yaml", "r") as yamlConfig:

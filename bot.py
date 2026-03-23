@@ -14,6 +14,7 @@ from telegram.ext import (
 from telegram.error import RetryAfter, BadRequest, TimedOut
 
 from neko import neko
+from chatHistory import ChatHistory
 
 logger.add(
     "./logs/log_{time:YYYY-MM-DD}.log",
@@ -22,7 +23,7 @@ logger.add(
     compression="gz",
     encoding="utf-8",
     enqueue=True,
-    format="{time:YYYY-MM-DD at HH:mm:ss:SSS, UTC Z} | Logging Function: {extra[module]}::{function} | {level} | {message}",
+    format="{time:YYYY-MM-DD at HH:mm:ss:SSS, UTC Z} | {level} | Logging Function: {extra[module]}::{function} | {message}",
 )
 
 
@@ -46,7 +47,8 @@ class bot:
             self.logger.error("Failed to load configuration: " + str(e))
             raise e
 
-        self.neko = neko()
+        self.chatHistory = ChatHistory()
+        self.neko = neko(chatHistory=self.chatHistory)
 
     async def __sendMessage(
         self, context: ContextTypes.DEFAULT_TYPE, chatID: int, text: str
@@ -77,7 +79,7 @@ class bot:
             except Exception as e:
                 asyncio.create_task(
                     self.__sendMessage(
-                        self, context, chatID, self.botReplyTemplate["BadRequest"]
+                        context, chatID, self.botReplyTemplate["BadRequest"]
                     )
                 )
                 self.logger.error("Unexpected error: " + str(e))
@@ -281,6 +283,20 @@ class bot:
             + update.message.text
         )
 
+        print(update.effective_user.full_name)
+        self.chatHistory.addMessage(
+            username=update.effective_user.full_name,
+            role="user",
+            message=update.message.text,
+            chatId=update.effective_chat.id,
+        )
+        self.chatHistory.addMessage(
+            username=update.effective_user.full_name,
+            role="bot",
+            message=response,
+            chatId=update.effective_chat.id,
+        )
+
     async def __chatStream(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
     ) -> None:
@@ -326,6 +342,19 @@ class bot:
             + update.message.text
         )
 
+        self.chatHistory.addMessage(
+            username=update.effective_user.full_name,
+            role="user",
+            message=update.message.text,
+            chatId=update.effective_chat.id,
+        )
+        self.chatHistory.addMessage(
+            username=update.effective_user.full_name,
+            role="bot",
+            message=accumulatedText,
+            chatId=update.effective_chat.id,
+        )
+
     async def __chatDebug(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
     ) -> None:
@@ -367,7 +396,9 @@ class bot:
 
     def run(self) -> None:
         try:
-            self.application = Application.builder().token(self.botConfig["Token"]).build()
+            self.application = (
+                Application.builder().token(self.botConfig["Token"]).build()
+            )
 
             self.logger.info("Telegram bot initialized successfully.")
 

@@ -215,5 +215,5 @@ __marimo__/
 # Logs
 /logs/*
 
-# Chat history
-/chatHistory/*
+# Database
+/database/chatHistory.db
