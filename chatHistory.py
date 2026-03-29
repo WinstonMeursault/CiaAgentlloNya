@@ -13,7 +13,11 @@ class ChatHistory:
         dbPath: Filesystem path of the SQLite database file.
     """
 
-    def __init__(self, dbPath: str = "./database/chatHistory.db") -> None:
+    def __init__(
+        self,
+        dbPath: str = os.path.dirname(os.path.realpath(__file__))
+        + "/database/chatHistory.db",
+    ) -> None:
         """Initialize the chat history store.
 
         Args:

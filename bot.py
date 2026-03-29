@@ -2,6 +2,7 @@
 
 import asyncio
 from time import time
+from os import path as osPath
 
 from loguru import logger
 from yaml import safe_load as yamlSafeLoad, dump as yamlDump
@@ -18,8 +19,10 @@ from telegram.error import RetryAfter, BadRequest, TimedOut
 from neko import neko
 from chatHistory import ChatHistory
 
+currentDir = osPath.dirname(osPath.realpath(__file__))
+
 logger.add(
-    "./logs/log_{time:YYYY-MM-DD}.log",
+    currentDir + "/logs/log_{time:YYYY-MM-DD}.log",
     rotation="00:00",
     retention="7 days",
     compression="gz",
@@ -61,11 +64,11 @@ class bot:
         self.logger.info("Bot Start.")
 
         try:
-            with open("./config/config.yaml", "r") as yamlConfig:
+            with open(currentDir + "/config/config.yaml", "r") as yamlConfig:
                 self.botConfig = yamlSafeLoad(yamlConfig)["TelegramBot"]
 
             if self.botConfig["Language"] == "CN":
-                with open("./config/replyTemplate_CN.yaml", "r") as yamlReplyTemplate:
+                with open(currentDir + "/config/replyTemplate_CN.yaml", "r") as yamlReplyTemplate:
                     self.botReplyTemplate = yamlSafeLoad(yamlReplyTemplate)
 
                     self.logger.info("Configuration loaded successfully.")
@@ -250,7 +253,7 @@ class bot:
                 )
             )
 
-            with open("./config/config.yaml", "w", encoding="utf-8") as f:
+            with open(self.currentDir + "/config/config.yaml", "w", encoding="utf-8") as f:
                 yamlDump(
                     self.botConfig, f, default_flow_style=False, allow_unicode=True
                 )
@@ -288,7 +291,7 @@ class bot:
                 )
             )
 
-            with open("./config/config.yaml", "w", encoding="utf-8") as f:
+            with open(self.currentDir + "/config/config.yaml", "w", encoding="utf-8") as f:
                 yamlDump(
                     self.botConfig, f, default_flow_style=False, allow_unicode=True
                 )
@@ -581,7 +584,6 @@ class bot:
 
             self.application.run_polling(allowed_updates=Update.ALL_TYPES)
 
-            self.logger.info("Polling started successfully.")
         except TimedOut as e:
             self.logger.error("Failed to start bot due to timeout: " + str(e))
         except Exception as e:

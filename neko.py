@@ -1,5 +1,6 @@
 """Nekomimi LLM API client module."""
 
+from os import path as osPath
 from typing import Optional, AsyncGenerator
 from json import loads as jsonLoads, JSONDecodeError
 
@@ -41,20 +42,21 @@ class neko:
             KeyError: If required configuration keys are not found.
             Exception: If configuration loading fails for any other reason.
         """
+        self.currentDir = osPath.dirname(osPath.realpath(__file__))
         self.logger = logger.bind(module="neko")
         self.chatHistory = chatHistory
 
         self.userName = ""
 
         try:
-            with open("./config/config.yaml", "r") as yamlConfig:
+            with open(self.currentDir + "/config/config.yaml", "r") as yamlConfig:
                 self.nekomimiConfig = yamlSafeLoad(yamlConfig)["Nekomimi"]
 
-            with open("./config/inf.yaml", "r") as yamlInf:
+            with open(self.currentDir + "/config/inf.yaml", "r") as yamlInf:
                 self.inf = yamlSafeLoad(yamlInf)
 
             if self.nekomimiConfig["Language"] == "CN":
-                with open("./config/prompt_CN.yaml", "r") as yamlPrompt:
+                with open(self.currentDir + "/config/prompt_CN.yaml", "r") as yamlPrompt:
                     self.nekomimiPrompt = yamlSafeLoad(yamlPrompt)
 
             self.logger.info("Configuration loaded successfully.")
