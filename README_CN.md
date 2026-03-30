@@ -20,6 +20,7 @@ Nekomimi:
 TelegramBot:
     Token: xxxxxxxxxx:xxxxxxxx-xxxxxxxxxxxxxxxxxxxxxxxxxx
     Language: xx
+    UserName: xxxxxxx
     StreamingResponse: False
 ```
 
@@ -44,6 +45,7 @@ TelegramBot:
 您应当在这里填写调用在线LLM时使用的语言，目前支持的有：
 
 - CN    (简体)中文
+- EN    英文
 
 ### TelegramBot
 
@@ -58,6 +60,11 @@ TelegramBot:
 您应当在这里填写该Bot的语言，目前支持的有：
 
 - CN    (简体)中文
+- EN    英文
+
+#### UserName
+
+您应当填入您Telegram的用户名
 
 #### StreamingResponse
 

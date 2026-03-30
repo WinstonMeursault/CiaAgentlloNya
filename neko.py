@@ -46,8 +46,6 @@ class neko:
         self.logger = logger.bind(module="neko")
         self.chatHistory = chatHistory
 
-        self.userName = ""
-
         try:
             with open(self.currentDir + "/config/config.yaml", "r") as yamlConfig:
                 self.nekomimiConfig = yamlSafeLoad(yamlConfig)["Nekomimi"]
@@ -58,26 +56,22 @@ class neko:
             if self.nekomimiConfig["Language"] == "CN":
                 with open(self.currentDir + "/config/prompt_CN.yaml", "r") as yamlPrompt:
                     self.nekomimiPrompt = yamlSafeLoad(yamlPrompt)
+            elif self.nekomimiConfig["Language"] == "EN":
+                with open(self.currentDir + "/config/prompt_EN.yaml", "r") as yamlPrompt:
+                    self.nekomimiPrompt = yamlSafeLoad(yamlPrompt)
 
             self.logger.info("Configuration loaded successfully.")
         except Exception as e:
             self.logger.error("Failed to load configuration: " + str(e))
             raise e
 
+        self.userName = self.nekomimiConfig["UserName"]
+        self.logger.info(f"Initial user name: {self.userName}")
         self.postURL = self.inf["API Provider URL"][self.nekomimiConfig["API Provider"]]
         self.postHeaders = {
             "Authorization": "Bearer " + self.nekomimiConfig["Token"],
             "Content-Type": "application/json",
         }
-
-    def setUserName(self, userName: str) -> None:
-        """Set the current user's name for personalized interactions.
-
-        Args:
-            userName: The Telegram username or display name.
-        """
-        self.userName = userName
-        self.logger.info(f"User name set to: {self.userName}")
 
     def __generatePrompt(self, request: str) -> str:
         """Generate the complete prompt with context and user request.

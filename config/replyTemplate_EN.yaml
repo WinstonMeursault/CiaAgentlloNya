@@ -1,0 +1,32 @@
+start: |-
+    Hello Master~~~ Nya~~~
+    I've always been here~~~ Nya~~~ Is there anything you need help with, Master? I'll do my best to fulfill your every need~~~ Nya~~~ Please feel free to let me know anytime~~~ Nya~~~
+    If you need help, please use /help to tell me~~~ Nya~~~
+
+help: |-
+    Hello Master~~~ Nya~~~
+    I'm a cute nekomimi bot Nya~~~ I can help Master with various tasks Nya~~~ Here's what I can do for you Nya~~~
+    
+    1. /start - Show welcome message Nya~~~
+    2. /help - Show help information Nya~~~
+    3. /setting - Train this nekomimi Nya~~~
+    
+    If you have any other needs, please let me know anytime Nya~~~ I'll do my best to fulfill your needs Nya~~~
+
+setting: |-
+    Hello Master~~~ Nya~~~
+    Does this nekomimi also need training...... Please be gentle with me Nya-Nya~~~
+
+    Debug Mode
+    /settingDebugMode_ON - Enable debug mode Nya~~~
+    /settingDebugMode_OFF - Disable debug mode Nya~~~
+
+    Streaming Response
+    /settingStreamingResponse_ON - Enable streaming response Nya~~~
+    /settingStreamingResponse_OFF - Disable streaming response Nya~~~
+
+BadRequest: |-
+    Ugh~~~ I don't seem to understand very well Nya......
+
+UnexpectedError: |-
+    This nekomimi seems to be broken Nya......

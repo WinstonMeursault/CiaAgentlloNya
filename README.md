@@ -11,6 +11,7 @@ Before attempting to run this bot, you should first configure config.yaml.
 You may modify ./config/configExample.yaml as needed, and then rename it to ./config/config.yaml to complete the configuration.
 
 ```yaml
+
 Nekomimi:
     API Provider: xxxxxx
     Model: xxxxxx
@@ -20,6 +21,7 @@ Nekomimi:
 TelegramBot:
     Token: xxxxxxxxxx:xxxxxxxx-xxxxxxxxxxxxxxxxxxxxxxxxxx
     Language: xx
+    UserName: xxxxxxx
     StreamingResponse: False
 ```
 
@@ -44,6 +46,7 @@ Please enter the API provider’s token here.
 Please specify the language used when calling the online LLM. Currently supported:
 
 - CN    (Simplified) Chinese
+- EN    English
 
 ### TelegramBot
 
@@ -58,6 +61,11 @@ If you have not yet registered a bot on Telegram, you can use the @BotFather bot
 Please specify the language for the bot. Currently supported:
 
 - CN    (Simplified) Chinese
+- EN    English
+
+#### UserName
+
+Please enter your Telegram username here.
 
 #### StreamingResponse
 

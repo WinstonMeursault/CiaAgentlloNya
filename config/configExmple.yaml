@@ -7,4 +7,5 @@ Nekomimi:
 TelegramBot:
     Token: xxxxxxxxxx:xxxxxxxx-xxxxxxxxxxxxxxxxxxxxxxxxxx
     Language: xx
+    UserName: xxxxxxx
     StreamingResponse: False

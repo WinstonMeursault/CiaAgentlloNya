@@ -70,8 +70,11 @@ class bot:
             if self.botConfig["Language"] == "CN":
                 with open(currentDir + "/config/replyTemplate_CN.yaml", "r") as yamlReplyTemplate:
                     self.botReplyTemplate = yamlSafeLoad(yamlReplyTemplate)
+            elif self.botConfig["Language"] == "EN":
+                with open(currentDir + "/config/replyTemplate_EN.yaml", "r") as yamlReplyTemplate:
+                    self.botReplyTemplate = yamlSafeLoad(yamlReplyTemplate)
 
-                    self.logger.info("Configuration loaded successfully.")
+            self.logger.info("Configuration loaded successfully.")
         except Exception as e:
             self.logger.error("Failed to load configuration: " + str(e))
             raise e
