@@ -53,7 +53,11 @@ class ChatHistory:
     def _resetDatabase(self) -> None:
         """Back up and delete the corrupted database file to allow recreation."""
         if os.path.exists(self.dbPath):
-            backupPath = self.dbPath + ".corrupt." + datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+            backupPath = (
+                self.dbPath
+                + ".corrupt."
+                + datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+            )
             self.logger.warning(
                 f"Database corruption detected. Backing up to {backupPath} and recreating."
             )

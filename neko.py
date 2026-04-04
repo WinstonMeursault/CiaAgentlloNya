@@ -188,16 +188,18 @@ class Neko:
         }
 
         async with aioHttpClientSession() as session:
-            async with session.post(self.postUrl, json=data, headers=self.postHeaders) as res:
+            async with session.post(
+                self.postUrl, json=data, headers=self.postHeaders
+            ) as res:
                 if res.status != 200:
                     body = await res.text()
-                    self.logger.error(
-                        f"LLM API returned status {res.status}: {body}"
-                    )
+                    self.logger.error(f"LLM API returned status {res.status}: {body}")
                     return ""
                 return self.__parseText(await res.json())
 
-    async def askNekoStream(self, userName: str, request: str) -> AsyncGenerator[str, None]:
+    async def askNekoStream(
+        self, userName: str, request: str
+    ) -> AsyncGenerator[str, None]:
         """Send an async streaming request to the LLM.
 
         Makes an asynchronous HTTP POST request with streaming enabled and

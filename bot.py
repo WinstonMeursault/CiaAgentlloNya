@@ -80,10 +80,14 @@ class Bot:
             self.botConfig = self.fullConfig["TelegramBot"]
 
             if self.botConfig["Language"] == "CN":
-                with open(currentDir + "/config/replyTemplate_CN.yaml", "r") as yamlReplyTemplate:
+                with open(
+                    currentDir + "/config/replyTemplate_CN.yaml", "r"
+                ) as yamlReplyTemplate:
                     self.botReplyTemplate = yamlSafeLoad(yamlReplyTemplate)
             elif self.botConfig["Language"] == "EN":
-                with open(currentDir + "/config/replyTemplate_EN.yaml", "r") as yamlReplyTemplate:
+                with open(
+                    currentDir + "/config/replyTemplate_EN.yaml", "r"
+                ) as yamlReplyTemplate:
                     self.botReplyTemplate = yamlSafeLoad(yamlReplyTemplate)
             else:
                 raise ValueError(
@@ -141,7 +145,9 @@ class Bot:
                 if not _isErrorReply:
                     asyncio.create_task(
                         self.__sendMessage(
-                            context, chatId, self.botReplyTemplate["BadRequest"],
+                            context,
+                            chatId,
+                            self.botReplyTemplate["BadRequest"],
                             _isErrorReply=True,
                         )
                     )
@@ -152,7 +158,9 @@ class Bot:
                 if not _isErrorReply:
                     asyncio.create_task(
                         self.__sendMessage(
-                            context, chatId, self.botReplyTemplate["BadRequest"],
+                            context,
+                            chatId,
+                            self.botReplyTemplate["BadRequest"],
                             _isErrorReply=True,
                         )
                     )
@@ -160,7 +168,8 @@ class Bot:
 
         self.logger.error(
             f"Failed to send message after {MAX_SEND_RETRIES} attempts. "
-            + "Chat ID: " + str(chatId)
+            + "Chat ID: "
+            + str(chatId)
         )
 
     async def __sendStreamingMessage(
@@ -202,7 +211,9 @@ class Bot:
                 self.logger.error("Chat ID: " + str(chatId) + ", Message: " + text)
                 asyncio.create_task(
                     self.__sendMessage(
-                        context, chatId, self.botReplyTemplate["BadRequest"],
+                        context,
+                        chatId,
+                        self.botReplyTemplate["BadRequest"],
                         _isErrorReply=True,
                     )
                 )
@@ -212,7 +223,9 @@ class Bot:
                 self.logger.error("Chat ID: " + str(chatId) + ", Message: " + text)
                 asyncio.create_task(
                     self.__sendMessage(
-                        context, chatId, self.botReplyTemplate["BadRequest"],
+                        context,
+                        chatId,
+                        self.botReplyTemplate["BadRequest"],
                         _isErrorReply=True,
                     )
                 )
@@ -220,7 +233,8 @@ class Bot:
 
         self.logger.error(
             f"Failed to send streaming message after {MAX_SEND_RETRIES} attempts. "
-            + "Chat ID: " + str(chatId)
+            + "Chat ID: "
+            + str(chatId)
         )
 
     async def __start(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -295,7 +309,9 @@ class Bot:
 
             asyncio.create_task(
                 self.__sendMessage(
-                    context, update.effective_chat.id, self.botReplyTemplate["settingStreamingResponseON"]
+                    context,
+                    update.effective_chat.id,
+                    self.botReplyTemplate["settingStreamingResponseON"],
                 )
             )
 
@@ -333,7 +349,9 @@ class Bot:
 
             asyncio.create_task(
                 self.__sendMessage(
-                    context, update.effective_chat.id, self.botReplyTemplate["settingStreamingResponseOFF"]
+                    context,
+                    update.effective_chat.id,
+                    self.botReplyTemplate["settingStreamingResponseOFF"],
                 )
             )
 
@@ -371,7 +389,9 @@ class Bot:
 
             asyncio.create_task(
                 self.__sendMessage(
-                    context, update.effective_chat.id, self.botReplyTemplate["settingDebugModeON"]
+                    context,
+                    update.effective_chat.id,
+                    self.botReplyTemplate["settingDebugModeON"],
                 )
             )
 
@@ -404,7 +424,9 @@ class Bot:
 
             asyncio.create_task(
                 self.__sendMessage(
-                    context, update.effective_chat.id, self.botReplyTemplate["settingDebugModeOFF"]
+                    context,
+                    update.effective_chat.id,
+                    self.botReplyTemplate["settingDebugModeOFF"],
                 )
             )
 
@@ -432,12 +454,15 @@ class Bot:
             context: Telegram bot context for API calls.
         """
         try:
-            response = await self.neko.askNeko(update.effective_user.full_name, update.message.text)
+            response = await self.neko.askNeko(
+                update.effective_user.full_name, update.message.text
+            )
         except Exception as e:
             self.logger.error(f"Failed to get LLM response: {e}")
             asyncio.create_task(
                 self.__sendMessage(
-                    context, update.effective_chat.id,
+                    context,
+                    update.effective_chat.id,
                     self.botReplyTemplate["UnexpectedError"],
                     _isErrorReply=True,
                 )
@@ -490,7 +515,9 @@ class Bot:
         lastFlush = asyncio.get_running_loop().time()
 
         try:
-            async for delta in self.neko.askNekoStream(update.effective_user.full_name, update.message.text):
+            async for delta in self.neko.askNekoStream(
+                update.effective_user.full_name, update.message.text
+            ):
                 buffer += delta
                 now = asyncio.get_running_loop().time()
 
@@ -509,7 +536,8 @@ class Bot:
             self.logger.error(f"Failed during streaming LLM response: {e}")
             asyncio.create_task(
                 self.__sendMessage(
-                    context, update.effective_chat.id,
+                    context,
+                    update.effective_chat.id,
                     self.botReplyTemplate["UnexpectedError"],
                     _isErrorReply=True,
                 )
