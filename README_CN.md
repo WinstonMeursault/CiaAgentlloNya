@@ -20,7 +20,6 @@ Nekomimi:
 TelegramBot:
     Token: xxxxxxxxxx:xxxxxxxx-xxxxxxxxxxxxxxxxxxxxxxxxxx
     Language: xx
-    UserName: xxxxxxx
     StreamingResponse: False
 ```
 
@@ -61,10 +60,6 @@ TelegramBot:
 
 - CN    (简体)中文
 - EN    英文
-
-#### UserName
-
-您应当填入您Telegram的用户名
 
 #### StreamingResponse
 

@@ -30,3 +30,15 @@ BadRequest: |-
 
 UnexpectedError: |-
     This nekomimi seems to be broken Nya......
+
+settingStreamingResponseON: |-
+    Streaming response is now enabled Nya~~
+
+settingStreamingResponseOFF: |-
+    Streaming response is now disabled Nya~~
+
+settingDebugModeON: |-
+    Debug mode is now enabled Nya~~
+
+settingDebugModeOFF: |-
+    Debug mode is now disabled Nya~~

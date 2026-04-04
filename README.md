@@ -21,7 +21,6 @@ Nekomimi:
 TelegramBot:
     Token: xxxxxxxxxx:xxxxxxxx-xxxxxxxxxxxxxxxxxxxxxxxxxx
     Language: xx
-    UserName: xxxxxxx
     StreamingResponse: False
 ```
 
@@ -62,10 +61,6 @@ Please specify the language for the bot. Currently supported:
 
 - CN    (Simplified) Chinese
 - EN    English
-
-#### UserName
-
-Please enter your Telegram username here.
 
 #### StreamingResponse
 

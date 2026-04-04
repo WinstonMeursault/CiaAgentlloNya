@@ -1,4 +1,10 @@
-"""Nekomimi LLM API client module."""
+"""
+Nekomimi LLM API client module.
+
+This module provides the Neko class, which handles communication with
+LLM providers to generate cat-girl persona responses based on
+user input and conversation history.
+"""
 
 from os import path as osPath
 from typing import Optional, AsyncGenerator
@@ -8,12 +14,13 @@ from time import time, localtime, asctime
 from aiohttp import ClientSession as aioHttpClientSession
 from loguru import logger
 from yaml import safe_load as yamlSafeLoad
-from requests import post as requestsPost
 
 from chatHistory import ChatHistory
 
+currentDir = osPath.dirname(osPath.realpath(__file__))
 
-class neko:
+
+class Neko:
     """Nekomimi LLM API client for chat interactions.
 
     This class handles communication with the LLM API provider to generate
@@ -22,10 +29,9 @@ class neko:
 
     Attributes:
         chatHistory: Reference to the chat history storage instance.
-        userName: Current user's name for personalized interactions.
         nekomimiConfig: Configuration settings loaded from config.yaml.
-        nekomimiPrompt: Prompt templates loaded from prompt_CN.yaml.
-        postURL: API endpoint URL for the configured provider.
+        nekomimiPrompt: Prompt templates loaded from the language-specific YAML file.
+        postUrl: API endpoint URL for the configured provider.
         postHeaders: HTTP headers including authorization token.
     """
 
@@ -40,46 +46,50 @@ class neko:
         Raises:
             FileNotFoundError: If configuration files are missing.
             KeyError: If required configuration keys are not found.
+            ValueError: If an unsupported language is configured.
             Exception: If configuration loading fails for any other reason.
         """
-        self.currentDir = osPath.dirname(osPath.realpath(__file__))
         self.logger = logger.bind(module="neko")
         self.chatHistory = chatHistory
 
         try:
-            with open(self.currentDir + "/config/config.yaml", "r") as yamlConfig:
+            with open(currentDir + "/config/config.yaml", "r") as yamlConfig:
                 self.nekomimiConfig = yamlSafeLoad(yamlConfig)["Nekomimi"]
 
-            with open(self.currentDir + "/config/inf.yaml", "r") as yamlInf:
+            with open(currentDir + "/config/inf.yaml", "r") as yamlInf:
                 self.inf = yamlSafeLoad(yamlInf)
 
             if self.nekomimiConfig["Language"] == "CN":
-                with open(self.currentDir + "/config/prompt_CN.yaml", "r") as yamlPrompt:
+                with open(currentDir + "/config/prompt_CN.yaml", "r") as yamlPrompt:
                     self.nekomimiPrompt = yamlSafeLoad(yamlPrompt)
             elif self.nekomimiConfig["Language"] == "EN":
-                with open(self.currentDir + "/config/prompt_EN.yaml", "r") as yamlPrompt:
+                with open(currentDir + "/config/prompt_EN.yaml", "r") as yamlPrompt:
                     self.nekomimiPrompt = yamlSafeLoad(yamlPrompt)
+            else:
+                raise ValueError(
+                    f"Unsupported language: {self.nekomimiConfig['Language']}. "
+                    "Supported values are 'CN' and 'EN'."
+                )
 
             self.logger.info("Configuration loaded successfully.")
         except Exception as e:
             self.logger.error("Failed to load configuration: " + str(e))
-            raise e
+            raise
 
-        self.userName = self.nekomimiConfig["UserName"]
-        self.logger.info(f"Initial user name: {self.userName}")
-        self.postURL = self.inf["API Provider URL"][self.nekomimiConfig["API Provider"]]
+        self.postUrl = self.inf["API Provider URL"][self.nekomimiConfig["API Provider"]]
         self.postHeaders = {
             "Authorization": "Bearer " + self.nekomimiConfig["Token"],
             "Content-Type": "application/json",
         }
 
-    def __generatePrompt(self, request: str) -> str:
+    def __generatePrompt(self, userName: str, request: str) -> str:
         """Generate the complete prompt with context and user request.
 
         Combines the persona setup prompt, chat history context, current time,
         and the user's request into a single prompt string.
 
         Args:
+            userName: The name of the user asking the question.
             request: The user's message to respond to.
 
         Returns:
@@ -89,11 +99,14 @@ class neko:
 
         setNekoPrompt = self.nekomimiPrompt["setNeko"]
         setNekoPrompt = setNekoPrompt.replace(
-            "{chatHistory}", str(self.chatHistory.getRecentMessages(self.userName, 20))
+            "{chatHistory}", str(self.chatHistory.getRecentMessages(userName, 20))
         )
         setNekoPrompt = setNekoPrompt.replace("{time}", asctime(localtime(time())))
 
-        return setNekoPrompt + self.nekomimiPrompt["askNeko"] + request
+        nekoPrompt = setNekoPrompt + self.nekomimiPrompt["askNeko"] + request
+        self.logger.debug("Generated prompt: " + nekoPrompt)
+
+        return nekoPrompt
 
     def __parseText(self, resp: dict) -> str:
         """Parse the LLM response to extract text content.
@@ -116,7 +129,7 @@ class neko:
 
         return "\n".join(texts)
 
-    def __parseTextSteam(self, line: str) -> Optional[str]:
+    def __parseTextStream(self, line: str) -> Optional[str]:
         """Parse a single line from the streaming response.
 
         Processes Server-Sent Events (SSE) format data lines and extracts
@@ -150,38 +163,48 @@ class neko:
 
         return None
 
-    def askNeko(self, request: str) -> str:
-        """Send a synchronous request to the LLM and return the response.
+    async def askNeko(self, userName: str, request: str) -> str:
+        """Send an async request to the LLM and return the response.
 
-        Makes a blocking HTTP POST request to the LLM API and waits for
-        the complete response.
+        Makes an asynchronous HTTP POST request to the LLM API and waits
+        for the complete response.
 
         Args:
+            userName: The name of the user asking the question.
             request: The user's message to send to the LLM.
 
         Returns:
-            The complete text response from the LLM.
+            The complete text response from the LLM, or an empty string
+            if the request fails.
 
         Raises:
-            requests.RequestException: If the HTTP request fails.
+            aiohttp.ClientError: If the HTTP request fails.
         """
         self.logger.info("Asking Neko...")
 
         data = {
             "model": self.nekomimiConfig["Model"],
-            "input": self.__generatePrompt(request),
+            "input": self.__generatePrompt(userName, request),
         }
 
-        res = requestsPost(self.postURL, json=data, headers=self.postHeaders)
-        return self.__parseText(res.json())
+        async with aioHttpClientSession() as session:
+            async with session.post(self.postUrl, json=data, headers=self.postHeaders) as res:
+                if res.status != 200:
+                    body = await res.text()
+                    self.logger.error(
+                        f"LLM API returned status {res.status}: {body}"
+                    )
+                    return ""
+                return self.__parseText(await res.json())
 
-    async def askNekoStream(self, request: str) -> AsyncGenerator[str, None]:
+    async def askNekoStream(self, userName: str, request: str) -> AsyncGenerator[str, None]:
         """Send an async streaming request to the LLM.
 
         Makes an asynchronous HTTP POST request with streaming enabled and
         yields text deltas as they arrive.
 
         Args:
+            userName: The name of the user asking the question.
             request: The user's message to send to the LLM.
 
         Yields:
@@ -194,20 +217,31 @@ class neko:
 
         data = {
             "model": self.nekomimiConfig["Model"],
-            "input": self.__generatePrompt(request),
+            "input": self.__generatePrompt(userName, request),
             "stream": True,
         }
 
-        async with aioHttpClientSession() as session:
-            async with session.post(
-                self.postURL, json=data, headers=self.postHeaders
-            ) as resp:
-                async for raw_line in resp.content:
-                    line = raw_line.decode("utf-8").strip()
-                    if not line:
-                        continue
+        try:
+            async with aioHttpClientSession() as session:
+                async with session.post(
+                    self.postUrl, json=data, headers=self.postHeaders
+                ) as resp:
+                    if resp.status != 200:
+                        body = await resp.text()
+                        self.logger.error(
+                            f"LLM API returned status {resp.status}: {body}"
+                        )
+                        return
 
-                    delta = self.__parseTextSteam(line)
+                    async for raw_line in resp.content:
+                        line = raw_line.decode("utf-8").strip()
+                        if not line:
+                            continue
 
-                    if delta:
-                        yield delta
+                        delta = self.__parseTextStream(line)
+
+                        if delta:
+                            yield delta
+        except Exception as e:
+            self.logger.error(f"Streaming request failed: {e}")
+            return

@@ -1,9 +1,17 @@
-"""SQLite-backed chat history storage module."""
+"""
+SQLite-backed chat history storage module.
+
+This module provides the ChatHistory class for persisting and retrieving
+conversation logs between users and the nekomimi assistant.
+"""
 
 import os
+import shutil
 import sqlite3
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
+
+from loguru import logger
 
 
 class ChatHistory:
@@ -23,6 +31,7 @@ class ChatHistory:
         Args:
             dbPath: Destination for the SQLite database file.
         """
+        self.logger = logger.bind(module="chatHistory")
         self.dbPath = dbPath
         os.makedirs(os.path.dirname(self.dbPath), exist_ok=True)
         self._ensureValidDatabase()
@@ -42,8 +51,13 @@ class ChatHistory:
             self._resetDatabase()
 
     def _resetDatabase(self) -> None:
-        """Delete the existing database file to allow recreation."""
+        """Back up and delete the corrupted database file to allow recreation."""
         if os.path.exists(self.dbPath):
+            backupPath = self.dbPath + ".corrupt." + datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+            self.logger.warning(
+                f"Database corruption detected. Backing up to {backupPath} and recreating."
+            )
+            shutil.copy2(self.dbPath, backupPath)
             os.remove(self.dbPath)
 
     def _initializeDatabase(self) -> None:
@@ -110,14 +124,14 @@ class ChatHistory:
             )
 
     def getRecentMessages(self, username: str, limit: int) -> List[Dict[str, str]]:
-        """Retrieve the latest messages for a username.
+        """Retrieve the latest messages for a username in chronological order.
 
         Args:
             username: Telegram username to filter by.
             limit: Maximum number of rows to return.
 
         Returns:
-            A list of dictionaries for each message ordered from newest to oldest.
+            A list of dictionaries for each message ordered from oldest to newest.
         """
         if limit <= 0:
             return []
@@ -127,10 +141,14 @@ class ChatHistory:
             cursor = connection.execute(
                 """
                 SELECT timestamp, chatId, username, role, message
-                FROM chatHistory
-                WHERE username = ?
-                ORDER BY timestamp DESC
-                LIMIT ?
+                FROM (
+                    SELECT timestamp, chatId, username, role, message
+                    FROM chatHistory
+                    WHERE username = ?
+                    ORDER BY timestamp DESC
+                    LIMIT ?
+                )
+                ORDER BY timestamp ASC
                 """,
                 (username, limit),
             )

@@ -30,3 +30,15 @@ BadRequest: |-
 
 UnexpectedError: |-
     本喵似乎坏掉了喵......
+
+settingStreamingResponseON: |-
+    流式回复已开启喵~~
+
+settingStreamingResponseOFF: |-
+    流式回复已关闭喵~~
+
+settingDebugModeON: |-
+    调试模式已开启喵~~
+
+settingDebugModeOFF: |-
+    调试模式已关闭喵~~

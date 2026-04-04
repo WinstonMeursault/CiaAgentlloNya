@@ -1,4 +1,10 @@
-"""Telegram bot application module for the Nekomimi cat-girl assistant."""
+"""
+Telegram bot application module for the CiaAgentlloNya nekomimi assistant.
+
+This module defines the main Bot class which handles Telegram updates,
+manages user configuration, and interacts with the Neko LLM client
+and ChatHistory database.
+"""
 
 import asyncio
 from time import time
@@ -16,7 +22,7 @@ from telegram.ext import (
 )
 from telegram.error import RetryAfter, BadRequest, TimedOut
 
-from neko import neko
+from neko import Neko
 from chatHistory import ChatHistory
 
 currentDir = osPath.dirname(osPath.realpath(__file__))
@@ -32,7 +38,10 @@ logger.add(
 )
 
 
-class bot:
+MAX_SEND_RETRIES = 3
+
+
+class Bot:
     """Telegram bot for Nekomimi cat-girl assistant interactions.
 
     This class manages the Telegram bot lifecycle, handles user commands
@@ -40,8 +49,9 @@ class bot:
 
     Attributes:
         debugMode: Flag indicating whether debug mode is enabled.
-        botConfig: Configuration settings loaded from config.yaml.
-        botReplyTemplate: Reply templates loaded from replyTemplate_CN.yaml.
+        fullConfig: Complete configuration dictionary loaded from config.yaml.
+        botConfig: TelegramBot section of the configuration.
+        botReplyTemplate: Reply templates loaded from the language-specific YAML file.
         chatHistory: Chat history storage instance.
         neko: Nekomimi LLM client instance.
         application: Telegram bot application instance.
@@ -56,6 +66,7 @@ class bot:
         Raises:
             FileNotFoundError: If configuration files are missing.
             KeyError: If required configuration keys are not found.
+            ValueError: If an unsupported language is configured.
             Exception: If configuration loading fails for any other reason.
         """
         self.logger = logger.bind(module="bot")
@@ -65,7 +76,8 @@ class bot:
 
         try:
             with open(currentDir + "/config/config.yaml", "r") as yamlConfig:
-                self.botConfig = yamlSafeLoad(yamlConfig)["TelegramBot"]
+                self.fullConfig = yamlSafeLoad(yamlConfig)
+            self.botConfig = self.fullConfig["TelegramBot"]
 
             if self.botConfig["Language"] == "CN":
                 with open(currentDir + "/config/replyTemplate_CN.yaml", "r") as yamlReplyTemplate:
@@ -73,63 +85,86 @@ class bot:
             elif self.botConfig["Language"] == "EN":
                 with open(currentDir + "/config/replyTemplate_EN.yaml", "r") as yamlReplyTemplate:
                     self.botReplyTemplate = yamlSafeLoad(yamlReplyTemplate)
+            else:
+                raise ValueError(
+                    f"Unsupported language: {self.botConfig['Language']}. "
+                    "Supported values are 'CN' and 'EN'."
+                )
 
             self.logger.info("Configuration loaded successfully.")
         except Exception as e:
             self.logger.error("Failed to load configuration: " + str(e))
-            raise e
+            raise
 
         self.chatHistory = ChatHistory()
-        self.neko = neko(chatHistory=self.chatHistory)
+        self.neko = Neko(chatHistory=self.chatHistory)
 
     async def __sendMessage(
-        self, context: ContextTypes.DEFAULT_TYPE, chatID: int, text: str
+        self,
+        context: ContextTypes.DEFAULT_TYPE,
+        chatId: int,
+        text: str,
+        _isErrorReply: bool = False,
     ) -> None:
         """Send a message to a Telegram chat with retry logic.
 
         Handles rate limiting by waiting and retrying, and catches common
-        Telegram API errors. On failure, sends an error message to the user.
+        Telegram API errors. On failure, sends an error message to the user
+        unless this message is itself an error reply (to prevent recursion).
 
         Args:
             context: Telegram bot context for API calls.
-            chatID: Target chat identifier.
+            chatId: Target chat identifier.
             text: Message content to send.
+            _isErrorReply: If True, suppresses further error notifications
+                to prevent infinite recursion.
         """
-        while True:
+        for attempt in range(1, MAX_SEND_RETRIES + 1):
             try:
-                await context.bot.send_message(chat_id=chatID, text=text)
+                await context.bot.send_message(chat_id=chatId, text=text)
                 self.logger.info("Message sent successfully. Message: " + text)
-                break
+                return
             except RetryAfter as e:
                 self.logger.warning(
                     f"Rate limit exceeded. Retrying after {e.retry_after} seconds."
                 )
-                self.logger.warning("Chat ID: " + str(chatID) + ", Message: " + text)
+                self.logger.warning("Chat ID: " + str(chatId) + ", Message: " + text)
                 await asyncio.sleep(e.retry_after)
-            except TimedOut as e:
-                self.logger.warning("Request timed out.")
-                self.logger.warning("Chat ID: " + str(chatID) + ", Message: " + text)
+            except TimedOut:
+                self.logger.warning(
+                    f"Request timed out (attempt {attempt}/{MAX_SEND_RETRIES})."
+                )
+                self.logger.warning("Chat ID: " + str(chatId) + ", Message: " + text)
             except BadRequest as e:
-                asyncio.create_task(
-                    self.__sendMessage(
-                        context, chatID, self.botReplyTemplate["BadRequest"]
-                    )
-                )
                 self.logger.error("Bad request error: " + str(e))
-                self.logger.error("Chat ID: " + str(chatID) + ", Message: " + text)
-                break
-            except Exception as e:
-                asyncio.create_task(
-                    self.__sendMessage(
-                        context, chatID, self.botReplyTemplate["BadRequest"]
+                self.logger.error("Chat ID: " + str(chatId) + ", Message: " + text)
+                if not _isErrorReply:
+                    asyncio.create_task(
+                        self.__sendMessage(
+                            context, chatId, self.botReplyTemplate["BadRequest"],
+                            _isErrorReply=True,
+                        )
                     )
-                )
+                return
+            except Exception as e:
                 self.logger.error("Unexpected error: " + str(e))
-                self.logger.error("Chat ID: " + str(chatID) + ", Message: " + text)
-                break
+                self.logger.error("Chat ID: " + str(chatId) + ", Message: " + text)
+                if not _isErrorReply:
+                    asyncio.create_task(
+                        self.__sendMessage(
+                            context, chatId, self.botReplyTemplate["BadRequest"],
+                            _isErrorReply=True,
+                        )
+                    )
+                return
+
+        self.logger.error(
+            f"Failed to send message after {MAX_SEND_RETRIES} attempts. "
+            + "Chat ID: " + str(chatId)
+        )
 
     async def __sendStreamingMessage(
-        self, context: ContextTypes.DEFAULT_TYPE, chatID: int, draftID: int, text: str
+        self, context: ContextTypes.DEFAULT_TYPE, chatId: int, draftId: int, text: str
     ) -> None:
         """Send a streaming message draft to a Telegram chat.
 
@@ -138,47 +173,55 @@ class bot:
 
         Args:
             context: Telegram bot context for API calls.
-            chatID: Target chat identifier.
-            draftID: Unique identifier for the message draft.
+            chatId: Target chat identifier.
+            draftId: Unique identifier for the message draft.
             text: Current accumulated message content.
         """
-        while True:
+        for attempt in range(1, MAX_SEND_RETRIES + 1):
             try:
                 await context.bot.send_message_draft(
-                    chat_id=chatID, draft_id=draftID, text=text
+                    chat_id=chatId, draft_id=draftId, text=text
                 )
                 self.logger.info(
                     "Streaming message sent successfully. Message: " + text
                 )
-                break
+                return
             except RetryAfter as e:
                 self.logger.warning(
                     f"Rate limit exceeded. Retrying after {e.retry_after} seconds."
                 )
-                self.logger.warning("Chat ID: " + str(chatID) + ", Message: " + text)
+                self.logger.warning("Chat ID: " + str(chatId) + ", Message: " + text)
                 await asyncio.sleep(e.retry_after)
-            except TimedOut as e:
-                self.logger.warning("Request timed out.")
-                self.logger.warning("Chat ID: " + str(chatID) + ", Message: " + text)
-                break
+            except TimedOut:
+                self.logger.warning(
+                    f"Streaming request timed out (attempt {attempt}/{MAX_SEND_RETRIES})."
+                )
+                self.logger.warning("Chat ID: " + str(chatId) + ", Message: " + text)
             except BadRequest as e:
-                asyncio.create_task(
-                    self.__sendMessage(
-                        context, chatID, self.botReplyTemplate["BadRequest"]
-                    )
-                )
                 self.logger.error("Bad request error: " + str(e))
-                self.logger.error("Chat ID: " + str(chatID) + ", Message: " + text)
-                break
-            except Exception as e:
+                self.logger.error("Chat ID: " + str(chatId) + ", Message: " + text)
                 asyncio.create_task(
                     self.__sendMessage(
-                        context, chatID, self.botReplyTemplate["BadRequest"]
+                        context, chatId, self.botReplyTemplate["BadRequest"],
+                        _isErrorReply=True,
                     )
                 )
+                return
+            except Exception as e:
                 self.logger.error("Unexpected error: " + str(e))
-                self.logger.error("Chat ID: " + str(chatID) + ", Message: " + text)
-                break
+                self.logger.error("Chat ID: " + str(chatId) + ", Message: " + text)
+                asyncio.create_task(
+                    self.__sendMessage(
+                        context, chatId, self.botReplyTemplate["BadRequest"],
+                        _isErrorReply=True,
+                    )
+                )
+                return
+
+        self.logger.error(
+            f"Failed to send streaming message after {MAX_SEND_RETRIES} attempts. "
+            + "Chat ID: " + str(chatId)
+        )
 
     async def __start(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """Handle the /start command.
@@ -252,13 +295,13 @@ class bot:
 
             asyncio.create_task(
                 self.__sendMessage(
-                    context, update.effective_chat.id, "流式回复已开启喵~~"
+                    context, update.effective_chat.id, self.botReplyTemplate["settingStreamingResponseON"]
                 )
             )
 
-            with open(self.currentDir + "/config/config.yaml", "w", encoding="utf-8") as f:
+            with open(currentDir + "/config/config.yaml", "w", encoding="utf-8") as f:
                 yamlDump(
-                    self.botConfig, f, default_flow_style=False, allow_unicode=True
+                    self.fullConfig, f, default_flow_style=False, allow_unicode=True
                 )
 
             self.logger.info(
@@ -290,13 +333,13 @@ class bot:
 
             asyncio.create_task(
                 self.__sendMessage(
-                    context, update.effective_chat.id, "流式回复已关闭喵~~"
+                    context, update.effective_chat.id, self.botReplyTemplate["settingStreamingResponseOFF"]
                 )
             )
 
-            with open(self.currentDir + "/config/config.yaml", "w", encoding="utf-8") as f:
+            with open(currentDir + "/config/config.yaml", "w", encoding="utf-8") as f:
                 yamlDump(
-                    self.botConfig, f, default_flow_style=False, allow_unicode=True
+                    self.fullConfig, f, default_flow_style=False, allow_unicode=True
                 )
 
             self.logger.info(
@@ -328,7 +371,7 @@ class bot:
 
             asyncio.create_task(
                 self.__sendMessage(
-                    context, update.effective_chat.id, "调试模式已开启喵~~"
+                    context, update.effective_chat.id, self.botReplyTemplate["settingDebugModeON"]
                 )
             )
 
@@ -361,7 +404,7 @@ class bot:
 
             asyncio.create_task(
                 self.__sendMessage(
-                    context, update.effective_chat.id, "调试模式已关闭喵~~"
+                    context, update.effective_chat.id, self.botReplyTemplate["settingDebugModeOFF"]
                 )
             )
 
@@ -379,7 +422,7 @@ class bot:
             )
 
     async def __chat(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        """Handle a chat message with synchronous LLM response.
+        """Handle a chat message with non-streaming LLM response.
 
         Sends the user message to the LLM, receives the complete response,
         and stores both messages in chat history.
@@ -388,7 +431,18 @@ class bot:
             update: Incoming Telegram update containing the message.
             context: Telegram bot context for API calls.
         """
-        response = self.neko.askNeko(update.message.text)
+        try:
+            response = await self.neko.askNeko(update.effective_user.full_name, update.message.text)
+        except Exception as e:
+            self.logger.error(f"Failed to get LLM response: {e}")
+            asyncio.create_task(
+                self.__sendMessage(
+                    context, update.effective_chat.id,
+                    self.botReplyTemplate["UnexpectedError"],
+                    _isErrorReply=True,
+                )
+            )
+            return
 
         asyncio.create_task(
             self.__sendMessage(context, update.effective_chat.id, response)
@@ -401,7 +455,6 @@ class bot:
             + update.message.text
         )
 
-        print(update.effective_user.full_name)
         self.chatHistory.addMessage(
             username=update.effective_user.full_name,
             role="user",
@@ -429,34 +482,45 @@ class bot:
             update: Incoming Telegram update containing the message.
             context: Telegram bot context for API calls.
         """
-        steamID = int(round(time() * 1000))
+        streamId = int(round(time() * 1000))
         accumulatedText = ""
         buffer = ""
         flushInterval = 0.3
         bufferMaxSize = 50
-        lastFlush = asyncio.get_event_loop().time()
+        lastFlush = asyncio.get_running_loop().time()
 
-        async for delta in self.neko.askNekoStream(update.message.text):
-            buffer += delta
-            now = asyncio.get_event_loop().time()
+        try:
+            async for delta in self.neko.askNekoStream(update.effective_user.full_name, update.message.text):
+                buffer += delta
+                now = asyncio.get_running_loop().time()
 
-            if now - lastFlush >= flushInterval or len(buffer) > bufferMaxSize:
-                accumulatedText += buffer
+                if now - lastFlush >= flushInterval or len(buffer) > bufferMaxSize:
+                    accumulatedText += buffer
 
-                asyncio.create_task(
-                    self.__sendStreamingMessage(
-                        context, update.effective_chat.id, steamID, accumulatedText
+                    asyncio.create_task(
+                        self.__sendStreamingMessage(
+                            context, update.effective_chat.id, streamId, accumulatedText
+                        )
                     )
-                )
 
-                buffer = ""
-                lastFlush = now
+                    buffer = ""
+                    lastFlush = now
+        except Exception as e:
+            self.logger.error(f"Failed during streaming LLM response: {e}")
+            asyncio.create_task(
+                self.__sendMessage(
+                    context, update.effective_chat.id,
+                    self.botReplyTemplate["UnexpectedError"],
+                    _isErrorReply=True,
+                )
+            )
+            return
 
         if buffer:
             accumulatedText += buffer
             asyncio.create_task(
                 self.__sendStreamingMessage(
-                    context, update.effective_chat.id, steamID, accumulatedText
+                    context, update.effective_chat.id, streamId, accumulatedText
                 )
             )
 
@@ -496,14 +560,17 @@ class bot:
             update: Incoming Telegram update containing the message.
             context: Telegram bot context for API calls.
         """
-        await context.bot.send_message(
+        await self.__sendMessage(
+            context,
             update.effective_chat.id,
             "Debug Mode\nInput: " + update.message.text + "\n\naskNekoOutput:",
         )
         await self.__chat(update, context)
 
-        await context.bot.send_message(
-            update.effective_chat.id, "askNekoStream Output:"
+        await self.__sendMessage(
+            context,
+            update.effective_chat.id,
+            "askNekoStream Output:",
         )
         await self.__chatStream(update, context)
 
@@ -526,6 +593,13 @@ class bot:
             update: Incoming Telegram update containing the message.
             context: Telegram bot context for API calls.
         """
+        if not update.message or not update.message.text:
+            self.logger.warning(
+                "Received update without message text. Chat ID: "
+                + str(update.effective_chat.id)
+            )
+            return
+
         self.logger.info(
             "Preparing to respond to chat message. Chat ID: "
             + str(update.effective_chat.id)
@@ -591,9 +665,9 @@ class bot:
             self.logger.error("Failed to start bot due to timeout: " + str(e))
         except Exception as e:
             self.logger.error("Failed to start bot due to unexpected error: " + str(e))
-            raise e
+            raise
 
 
 if __name__ == "__main__":
-    telegramBot = bot()
+    telegramBot = Bot()
     telegramBot.run()
