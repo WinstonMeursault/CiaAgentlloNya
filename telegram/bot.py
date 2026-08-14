@@ -7,6 +7,7 @@ and ChatHistory database.
 """
 
 import asyncio
+import sys
 from time import time
 from os import path as osPath
 
@@ -22,10 +23,12 @@ from telegram.ext import (
 )
 from telegram.error import RetryAfter, BadRequest, TimedOut
 
-from neko import Neko
-from chatHistory import ChatHistory
-
 currentDir = osPath.dirname(osPath.realpath(__file__))
+rootDir = osPath.dirname(currentDir)
+sys.path.insert(0, rootDir)
+
+from core.neko import Neko
+from core.chatHistory import ChatHistory
 
 logger.add(
     currentDir + "/logs/log_{time:YYYY-MM-DD}.log",

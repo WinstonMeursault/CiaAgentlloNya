@@ -1,0 +1,4 @@
+TelegramBot:
+    Token: xxxxxxxxxx:xxxxxxxx-xxxxxxxxxxxxxxxxxxxxxxxxxx
+    Language: xx
+    StreamingResponse: False

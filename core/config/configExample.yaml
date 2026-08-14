@@ -3,8 +3,3 @@ Nekomimi:
     Model: xxxxxx
     Token: xx-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
     Language: xx
-
-TelegramBot:
-    Token: xxxxxxxxxx:xxxxxxxx-xxxxxxxxxxxxxxxxxxxxxxxxxx
-    Language: xx
-    StreamingResponse: False

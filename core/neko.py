@@ -15,7 +15,7 @@ from aiohttp import ClientSession as aioHttpClientSession
 from loguru import logger
 from yaml import safe_load as yamlSafeLoad
 
-from chatHistory import ChatHistory
+from core.chatHistory import ChatHistory
 
 currentDir = osPath.dirname(osPath.realpath(__file__))
 

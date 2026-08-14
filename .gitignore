@@ -210,10 +210,11 @@ __marimo__/
 .vscode/
 
 # Configuration
-/config/config.yaml
+/core/config/config.yaml
+/telegram/config/config.yaml
 
 # Logs
-/logs/*
+/telegram/logs/*
 
 # Database
-/database/chatHistory.db
+/core/database/chatHistory.db

@@ -97,10 +97,10 @@ class ChatHistory:
         """Persist a message record.
 
         Args:
-            username: Telegram username associated with the message.
+            username: Username associated with the message.
             role: Role of the speaker, either ``user`` or ``bot``.
             message: Message body.
-            chatId: Telegram chat identifier if available.
+            chatId: Chat identifier if available.
             timestamp: Timestamp for the message; defaults to current UTC time.
 
         Raises:
@@ -131,7 +131,7 @@ class ChatHistory:
         """Retrieve the latest messages for a username in chronological order.
 
         Args:
-            username: Telegram username to filter by.
+            username: Username to filter by.
             limit: Maximum number of rows to return.
 
         Returns:

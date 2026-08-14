@@ -1,0 +1,2 @@
+# QQ Bot dependencies (to be added)
+-r ../core/requirements.txt

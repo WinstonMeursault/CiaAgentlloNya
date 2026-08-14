@@ -2,76 +2,80 @@
 
 🌐 Languages: [![English](https://img.shields.io/badge/README-English-green)](README.md) [![中文](https://img.shields.io/badge/README-%E4%B8%AD%E6%96%87-blue)](README_CN.md)
 
-This is a **personal Telegram nekomimi** Agent bot. Cia Bot llo~ (∠·ω< )⌒★ Nya~~~
+A **personal nekomimi assistant bot**. Cia Bot llo~ (∠·ω< )⌒★ Nya~~~
+
+This project is a nekomimi (cat-girl) chatbot powered by an online LLM. It is designed as a multi-platform bot: the shared LLM / persona / storage logic is centralized in [`core/`](core/), while each chat platform is implemented as an independent sub-package.
+
+## Supported Platforms
+
+| Platform | Status |
+|----------|--------|
+| Telegram | ✅ Implemented — see [`telegram/`](telegram/) |
+| QQ       | 🚧 Planned |
+
+## Project Structure
+
+```text
+CiaBotlloNya/
+├── core/                     # Shared, platform-agnostic package
+│   ├── neko.py               # Nekomimi LLM API client
+│   ├── chatHistory.py        # SQLite-backed chat history storage
+│   ├── requirements.txt      # Shared dependencies
+│   └── config/               # Shared LLM configuration
+│       ├── configExample.yaml
+│       ├── inf.yaml
+│       ├── prompt_CN.yaml
+│       └── prompt_EN.yaml
+├── telegram/                 # Telegram bot
+│   ├── bot.py                # Telegram bot application
+│   ├── requirements.txt      # Telegram dependencies
+│   ├── README.md             # Telegram-specific setup
+│   └── config/               # Telegram configuration
+│       ├── configExample.yaml
+│       ├── replyTemplate_CN.yaml
+│       └── replyTemplate_EN.yaml
+└── qq/                       # QQ bot (planned)
+```
 
 ## Configuration
 
-Before attempting to run this bot, you should first configure config.yaml.
+Configuration is split between shared LLM settings and per-platform settings.
 
-You may modify ./config/configExample.yaml as needed, and then rename it to ./config/config.yaml to complete the configuration.
+### Shared LLM (`core/config/`)
+
+Copy `core/config/configExample.yaml` to `core/config/config.yaml` and fill in your values.
 
 ```yaml
-
 Nekomimi:
     API Provider: xxxxxx
     Model: xxxxxx
     Token: xx-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
     Language: xx
-
-TelegramBot:
-    Token: xxxxxxxxxx:xxxxxxxx-xxxxxxxxxxxxxxxxxxxxxxxxxx
-    Language: xx
-    StreamingResponse: False
 ```
 
-### Nekomimi
+- **API Provider** — the online LLM provider. Currently supported: `Opencode Zen`.
+- **Model** — the online LLM model name (consult your provider's documentation).
+- **Token** — the API provider's token.
+- **Language** — language used when calling the LLM: `CN` or `EN`.
 
-#### API Provider
+### Telegram (`telegram/config/`)
 
-Please specify the name of the online LLM API provider here. Currently supported providers include:
-
-- Opencode Zen
-
-#### Model
-
-Please specify the name of the online LLM model to be used. The exact name may require consulting the API provider’s documentation.
-
-#### Token (API Provider)
-
-Please enter the API provider’s token here.
-
-#### Language (API Provider)
-
-Please specify the language used when calling the online LLM. Currently supported:
-
-- CN    (Simplified) Chinese
-- EN    English
-
-### TelegramBot
-
-#### Token (TelegramBot)
-
-Please enter your Telegram Bot token (HTTP API) here.
-
-If you have not yet registered a bot on Telegram, you can use the @BotFather bot to create one. After sending /start, run /newbot and follow the instructions to set the bot name and username, after which you will receive the token.
-
-#### Language (TelegramBot)
-
-Please specify the language for the bot. Currently supported:
-
-- CN    (Simplified) Chinese
-- EN    English
-
-#### StreamingResponse
-
-The configuration for the bot's response type is as follows, Single Complete Response or Streamed Response.
-
-Currently, the bot may support both types, but streamed responses seem to have some bugs. Users may receive two identical responses simultaneously, and one of the messages may disappear after some time or under certain undefined conditions.
-
-Since the response content for this bot is generally not very long, it is recommended to set this to False, meaning the bot will default to sending a single complete response.
-
-This setting should be a boolean value. Please set it to True or False.
+Copy `telegram/config/configExample.yaml` to `telegram/config/config.yaml`. See [`telegram/README.md`](telegram/README.md) for the full setup and running instructions.
 
 ## Running
 
-This project is currently under development. If you would like to try running it, you can execute ./bot.py to test the bot.
+```bash
+pip install -r telegram/requirements.txt
+python telegram/bot.py
+```
+
+You can also run it as a module from the repository root: `python -m telegram.bot`.
+
+## Roadmap
+
+- [x] Telegram Bot
+- [ ] QQ Bot
+
+## License
+
+[GPL-3.0](LICENSE)

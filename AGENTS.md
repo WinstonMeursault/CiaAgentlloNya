@@ -1,19 +1,20 @@
 # AGENTS.md - Developer Guide for CiaBotlloNya
 
 ## Project Overview
-A Telegram nekomimi agent bot with LLM integration and persistent chat history.
+A multi-platform nekomimi agent bot with LLM integration and persistent chat history (Telegram implemented, QQ planned).
 
 | File | Description |
 |------|-------------|
-| `bot.py` | Main Telegram bot application |
-| `neko.py` | Nekomimi LLM API client |
-| `chatHistory.py` | SQLite-backed conversation storage |
-| `config/` | YAML configuration files |
+| `telegram/bot.py` | Telegram bot application |
+| `core/neko.py` | Nekomimi LLM API client |
+| `core/chatHistory.py` | SQLite-backed conversation storage |
+| `core/config/` | Shared LLM YAML configuration |
+| `telegram/config/` | Telegram YAML configuration |
 
 ## Running the Bot
 ```bash
-pip install -r requirements.txt
-python bot.py
+pip install -r telegram/requirements.txt
+python telegram/bot.py
 ```
 
 ## Testing & Linting
@@ -52,8 +53,8 @@ from typing import Any, Dict, List, Optional
 import aiohttp
 from loguru import logger
 
-from neko import Neko
-from chatHistory import ChatHistory
+from core.neko import Neko
+from core.chatHistory import ChatHistory
 ```
 
 ### Type Hints
@@ -71,7 +72,7 @@ class ChatHistory:
         """Persist a message record.
 
         Args:
-            username: Telegram username associated with the message.
+            username: Username associated with the message.
             role: Role of the speaker, either ``user`` or ``bot``.
             message: Message body.
         """
@@ -117,15 +118,20 @@ with sqlite3.connect(self.dbPath) as connection:
     )
 ```
 
-### Configuration (config/config.yaml)
-Ensure all changes to the configuration are persisted correctly by reading the `fullConfig` first.
+### Configuration
+Configuration is split between shared LLM settings and per-platform settings. Ensure changes are persisted correctly by reading the `fullConfig` first.
+
+Shared LLM (`core/config/config.yaml`):
 ```yaml
 Nekomimi:
     API Provider: <provider>
     Model: <model>
     Token: <api-token>
     Language: CN
+```
 
+Telegram (`telegram/config/config.yaml`):
+```yaml
 TelegramBot:
     Token: <bot-token>
     Language: CN
@@ -135,12 +141,18 @@ TelegramBot:
 ## File Structure
 ```
 CiaBotlloNya/
-├── bot.py            # Telegram bot entry point
-├── neko.py           # LLM API client
-├── chatHistory.py    # SQLite chat storage
-├── config/           # YAML configuration
-├── database/         # SQLite database files
-├── logs/             # Log output
-├── requirements.txt  # Dependencies
-└── AGENTS.md         # This file
+├── core/                 # Shared, platform-agnostic package
+│   ├── neko.py           # Nekomimi LLM API client
+│   ├── chatHistory.py    # SQLite chat storage
+│   ├── requirements.txt  # Shared dependencies
+│   └── config/           # Shared LLM YAML configuration
+├── telegram/             # Telegram bot
+│   ├── bot.py            # Telegram bot application
+│   ├── requirements.txt  # Telegram dependencies
+│   └── config/           # Telegram YAML configuration
+├── qq/                   # QQ bot (planned)
+├── README.md             # English README
+├── README_CN.md          # Chinese README
+├── LICENSE               # GPL-3.0
+└── AGENTS.md             # This file
 ```
