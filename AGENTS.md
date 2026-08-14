@@ -124,11 +124,17 @@ Configuration is split between shared LLM settings and per-platform settings. En
 
 Shared LLM (`core/config/config.yaml`):
 ```yaml
-Nekomimi:
-    API Provider: <provider>
-    Model: <model>
-    Token: <api-token>
-    Language: CN
+llm:
+    api_provider: DeepSeek
+    base_url: https://api.deepseek.com
+    api_key: <api-key>
+    model: deepseek-v4-flash
+    thinking:
+        type: enabled
+    reasoning_effort: medium
+    max_tokens: 1024
+    timeout_seconds: 60
+    language: CN
 ```
 
 Telegram (`telegram/config/config.yaml`):

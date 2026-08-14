@@ -4,7 +4,7 @@ Telegram bot implementation for CiaBotlloNya.
 
 ## Prerequisites
 
-The Telegram bot also requires the shared LLM configuration. Copy `../core/config/configExample.yaml` to `../core/config/config.yaml` and fill in the `Nekomimi` section before running.
+The Telegram bot also requires the shared LLM configuration. Copy `../core/config/configExample.yaml` to `../core/config/config.yaml` and fill in the `llm` section (DeepSeek) before running.
 
 ## Configuration
 

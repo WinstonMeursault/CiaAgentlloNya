@@ -48,17 +48,24 @@ CiaBotlloNya/
 将 `core/config/configExample.yaml` 复制为 `core/config/config.yaml` 并填入你的值。
 
 ```yaml
-Nekomimi:
-    API Provider: xxxxxx
-    Model: xxxxxx
-    Token: xx-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-    Language: xx
+llm:
+    api_provider: DeepSeek
+    base_url: https://api.deepseek.com
+    api_key: sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+    model: deepseek-v4-flash
+    thinking:
+        type: enabled
+    reasoning_effort: medium
+    max_tokens: 1024
+    timeout_seconds: 60
+    language: CN
 ```
 
-- **API Provider** — 在线 LLM 提供商，目前支持：`Opencode Zen`。
-- **Model** — 在线 LLM 模型名称（请查阅提供商的文档）。
-- **Token** — API 提供商的 Token。
-- **Language** — 调用 LLM 时使用的语言：`CN` 或 `EN`。
+- **api_provider** — LLM 后端：`DeepSeek`（OpenAI 兼容 `chat/completions`，默认）或 `Opencode Zen`（旧 `responses` 路径）。
+- **base_url / api_key / model** — DeepSeek 的地址、密钥与模型名。
+- **thinking / reasoning_effort** — 可选，DeepSeek 思考模式开关与强度。
+- **max_tokens / timeout_seconds** — 输出上限与请求超时。
+- **language** — 人设语言：`CN` 或 `EN`。
 
 ### Telegram（`telegram/config/`）
 

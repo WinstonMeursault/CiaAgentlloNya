@@ -48,17 +48,24 @@ Configuration is split between shared LLM settings and per-platform settings.
 Copy `core/config/configExample.yaml` to `core/config/config.yaml` and fill in your values.
 
 ```yaml
-Nekomimi:
-    API Provider: xxxxxx
-    Model: xxxxxx
-    Token: xx-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-    Language: xx
+llm:
+    api_provider: DeepSeek
+    base_url: https://api.deepseek.com
+    api_key: sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+    model: deepseek-v4-flash
+    thinking:
+        type: enabled
+    reasoning_effort: medium
+    max_tokens: 1024
+    timeout_seconds: 60
+    language: CN
 ```
 
-- **API Provider** — the online LLM provider. Currently supported: `Opencode Zen`.
-- **Model** — the online LLM model name (consult your provider's documentation).
-- **Token** — the API provider's token.
-- **Language** — language used when calling the LLM: `CN` or `EN`.
+- **api_provider** — the LLM backend. `DeepSeek` (OpenAI-compatible `chat/completions`, default) or `Opencode Zen` (legacy `responses`).
+- **base_url / api_key / model** — DeepSeek endpoint, key, and model name.
+- **thinking / reasoning_effort** — optional DeepSeek reasoning controls.
+- **max_tokens / timeout_seconds** — output cap and request timeout.
+- **language** — persona language: `CN` or `EN`.
 
 ### Telegram (`telegram/config/`)
 

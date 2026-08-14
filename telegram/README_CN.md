@@ -4,7 +4,7 @@ CiaBotlloNya 的 Telegram 机器人实现。
 
 ## 前置条件
 
-Telegram 机器人也需要共享 LLM 配置。运行前请将 `../core/config/configExample.yaml` 复制为 `../core/config/config.yaml`，并填写 `Nekomimi` 段。
+Telegram 机器人也需要共享 LLM 配置。运行前请将 `../core/config/configExample.yaml` 复制为 `../core/config/config.yaml`，并填写 `llm`（DeepSeek）段。
 
 ## 配置
 
