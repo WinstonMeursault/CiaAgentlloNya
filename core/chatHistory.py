@@ -93,10 +93,18 @@ class ChatHistory:
                     group_id TEXT NOT NULL,
                     user_id TEXT NOT NULL,
                     role TEXT NOT NULL CHECK(role IN ('user', 'bot')),
+                    nickname TEXT,
                     message TEXT NOT NULL
                 )
                 """
             )
+            # 迁移：为旧库补充 nickname 列
+            columns = [
+                row[1]
+                for row in connection.execute("PRAGMA table_info(groupChatHistory)").fetchall()
+            ]
+            if "nickname" not in columns:
+                connection.execute("ALTER TABLE groupChatHistory ADD COLUMN nickname TEXT")
             connection.execute(
                 """
                 CREATE INDEX IF NOT EXISTS idxGroupChatHistoryGroupTimestamp
@@ -151,6 +159,7 @@ class ChatHistory:
         userId: str,
         role: str,
         message: str,
+        nickname: Optional[str] = None,
         timestamp: Optional[datetime] = None,
     ) -> None:
         """Persist a group chat message into the shared group context buffer.
@@ -160,6 +169,7 @@ class ChatHistory:
             userId: Speaker identifier (QQ number), or the bot's UIN for replies.
             role: Role of the speaker, either 'user' or 'bot'.
             message: Message body.
+            nickname: Display name of the speaker (group card or nickname).
             timestamp: Timestamp for the message; defaults to current UTC time.
 
         Raises:
@@ -174,14 +184,15 @@ class ChatHistory:
         with sqlite3.connect(self.dbPath) as connection:
             connection.execute(
                 """
-                INSERT INTO groupChatHistory (timestamp, group_id, user_id, role, message)
-                VALUES (?, ?, ?, ?, ?)
+                INSERT INTO groupChatHistory (timestamp, group_id, user_id, role, nickname, message)
+                VALUES (?, ?, ?, ?, ?, ?)
                 """,
                 (
                     timestamp.isoformat(),
                     str(groupId),
                     str(userId),
                     role,
+                    None if nickname is None else str(nickname),
                     message,
                 ),
             )
@@ -203,9 +214,9 @@ class ChatHistory:
             connection.row_factory = sqlite3.Row
             cursor = connection.execute(
                 """
-                SELECT timestamp, group_id, user_id, role, message
+                SELECT timestamp, group_id, user_id, role, nickname, message
                 FROM (
-                    SELECT timestamp, group_id, user_id, role, message
+                    SELECT timestamp, group_id, user_id, role, nickname, message
                     FROM groupChatHistory
                     WHERE group_id = ?
                     ORDER BY timestamp DESC
@@ -252,6 +263,52 @@ class ChatHistory:
             rows = cursor.fetchall()
 
         return [dict(row) for row in rows]
+
+    def pruneMessages(self, username: str, maxRows: int) -> None:
+        """Delete the oldest messages for a username, keeping the newest maxRows.
+
+        Args:
+            username: Username to prune.
+            maxRows: Number of most recent rows to keep; 0 or negative means no pruning.
+        """
+        if maxRows <= 0:
+            return
+        with sqlite3.connect(self.dbPath) as connection:
+            connection.execute(
+                """
+                DELETE FROM chatHistory
+                WHERE id IN (
+                    SELECT id FROM chatHistory
+                    WHERE username = ?
+                    ORDER BY timestamp DESC
+                    LIMIT -1 OFFSET ?
+                )
+                """,
+                (username, maxRows),
+            )
+
+    def pruneGroupMessages(self, groupId: str, maxRows: int) -> None:
+        """Delete the oldest group messages for a group, keeping the newest maxRows.
+
+        Args:
+            groupId: Group to prune.
+            maxRows: Number of most recent rows to keep; 0 or negative means no pruning.
+        """
+        if maxRows <= 0:
+            return
+        with sqlite3.connect(self.dbPath) as connection:
+            connection.execute(
+                """
+                DELETE FROM groupChatHistory
+                WHERE id IN (
+                    SELECT id FROM groupChatHistory
+                    WHERE group_id = ?
+                    ORDER BY timestamp DESC
+                    LIMIT -1 OFFSET ?
+                )
+                """,
+                (str(groupId), maxRows),
+            )
 
     def getUsernames(self) -> List[str]:
         """Return distinct usernames stored in the chat history.
