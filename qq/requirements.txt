@@ -1,2 +1,2 @@
-# QQ Bot dependencies (to be added)
+# QQ bot runs inside the NcatBot Docker image; locally only core deps (aiohttp/PyYAML) are needed.
 -r ../core/requirements.txt

@@ -11,7 +11,7 @@ This project is a nekomimi (cat-girl) chatbot powered by an online LLM. It is de
 | Platform | Status |
 |----------|--------|
 | Telegram | ✅ Implemented — see [`telegram/`](telegram/) |
-| QQ       | 🚧 Planned |
+| QQ       | ✅ Implemented — see [`qq/`](qq/) |
 
 ## Project Structure
 
@@ -34,7 +34,9 @@ CiaBotlloNya/
 │       ├── configExample.yaml
 │       ├── replyTemplate_CN.yaml
 │       └── replyTemplate_EN.yaml
-└── qq/                       # QQ bot (planned)
+└── qq/                       # QQ bot (NcatBot + ai_chat plugin)
+    ├── AI Chat/              # ai_chat plugin (plugin.py, configExample.yaml, …)
+    └── README.md
 ```
 
 ## Configuration
@@ -62,6 +64,10 @@ Nekomimi:
 
 Copy `telegram/config/configExample.yaml` to `telegram/config/config.yaml`. See [`telegram/README.md`](telegram/README.md) for the full setup and running instructions.
 
+### QQ (`qq/AI Chat/`)
+
+Copy `qq/AI Chat/configExample.yaml` to `qq/AI Chat/config.yaml`. See [`qq/README.md`](qq/README.md) for the full setup and running instructions.
+
 ## Running
 
 ```bash
@@ -74,7 +80,7 @@ You can also run it as a module from the repository root: `python -m telegram.bo
 ## Roadmap
 
 - [x] Telegram Bot
-- [ ] QQ Bot
+- [x] QQ Bot
 
 ## License
 

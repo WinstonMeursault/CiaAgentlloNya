@@ -1,7 +1,7 @@
 # AGENTS.md - Developer Guide for CiaBotlloNya
 
 ## Project Overview
-A multi-platform nekomimi agent bot with LLM integration and persistent chat history (Telegram implemented, QQ planned).
+A multi-platform nekomimi agent bot with LLM integration and persistent chat history (Telegram and QQ implemented).
 
 | File | Description |
 |------|-------------|
@@ -10,6 +10,7 @@ A multi-platform nekomimi agent bot with LLM integration and persistent chat his
 | `core/chatHistory.py` | SQLite-backed conversation storage |
 | `core/config/` | Shared LLM YAML configuration |
 | `telegram/config/` | Telegram YAML configuration |
+| `qq/AI Chat/` | QQ bot ai_chat plugin (NcatBot) |
 
 ## Running the Bot
 ```bash
@@ -150,7 +151,9 @@ CiaBotlloNya/
 │   ├── bot.py            # Telegram bot application
 │   ├── requirements.txt  # Telegram dependencies
 │   └── config/           # Telegram YAML configuration
-├── qq/                   # QQ bot (planned)
+├── qq/                   # QQ bot (NcatBot + ai_chat plugin)
+│   ├── AI Chat/          # ai_chat plugin
+│   └── README.md
 ├── README.md             # English README
 ├── README_CN.md          # Chinese README
 ├── LICENSE               # GPL-3.0

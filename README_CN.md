@@ -11,7 +11,7 @@
 | 平台 | 状态 |
 |------|------|
 | Telegram | ✅ 已实现 — 见 [`telegram/`](telegram/) |
-| QQ       | 🚧 计划中 |
+| QQ       | ✅ 已实现 — 见 [`qq/`](qq/) |
 
 ## 项目结构
 
@@ -34,7 +34,9 @@ CiaBotlloNya/
 │       ├── configExample.yaml
 │       ├── replyTemplate_CN.yaml
 │       └── replyTemplate_EN.yaml
-└── qq/                       # QQ 机器人（计划中）
+└── qq/                       # QQ 机器人（NcatBot + ai_chat 插件）
+    ├── AI Chat/              # ai_chat 插件（plugin.py、configExample.yaml 等）
+    └── README.md
 ```
 
 ## 配置
@@ -62,6 +64,10 @@ Nekomimi:
 
 将 `telegram/config/configExample.yaml` 复制为 `telegram/config/config.yaml`。完整配置与运行说明见 [`telegram/README.md`](telegram/README.md)。
 
+### QQ（`qq/AI Chat/`）
+
+将 `qq/AI Chat/configExample.yaml` 复制为 `qq/AI Chat/config.yaml`。完整配置与运行说明见 [`qq/README.md`](qq/README.md)。
+
 ## 运行
 
 ```bash
@@ -74,7 +80,7 @@ python telegram/bot.py
 ## 路线图
 
 - [x] Telegram Bot
-- [ ] QQ Bot
+- [x] QQ Bot
 
 ## 许可证
 
