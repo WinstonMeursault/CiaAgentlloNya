@@ -1,15 +1,7 @@
-# DeepSeek API 配置（复制本文件为 config.yaml 并填入真实值）
-deepseek:
-  base_url: https://api.deepseek.com
-  api_key: sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-  model: deepseek-v4-flash
-  thinking:
-    type: enabled
-  reasoning_effort: medium
-  max_tokens: 1024
-  timeout_seconds: 60
+# ai_chat 插件配置模板（复制为 config.yaml 并填入真实值；config.yaml 已被 gitignore）
+# LLM 后端（DeepSeek / 人设 / 语言）统一在 core/config/config.yaml 配置，本文件只放 QQ 侧规则。
 
-# 高权限用户组：可无限次调用
+# 高权限用户组：可无限次调用，且使用更大的上下文窗口
 admin_uins:
   - "123456789"          # 替换为真实 QQ 号
 
@@ -17,3 +9,12 @@ admin_uins:
 rate_limit:
   daily_limit: 10
   utc_offset_hours: 8
+
+# 上下文窗口（最近 N 条消息，按「群+用户」隔离）
+context:
+  history_limit_normal: 10   # 普通用户
+  history_limit_admin: 50    # 高权限组
+
+# SQLite 历史库路径（留空则默认存到容器 data/ai_chat/chatHistory.db）
+chat_history:
+  db_path: ""

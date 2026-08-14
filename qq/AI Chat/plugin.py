@@ -1,12 +1,16 @@
-"""群内 @离岛酱 触发 DeepSeek V4 Flash 问答插件。"""
+"""群内 @离岛酱 触发「月羽雪乃」nekomimi 问答插件。
+
+LLM 后端已统一到共享 ``core.neko.Neko``（DeepSeek chat/completions +
+SQLite 持久上下文），与 Telegram 共用同一套人设与后端。
+"""
 
 from __future__ import annotations
 
+import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Dict, List, Optional
 
-import aiohttp
 import yaml
 
 from ncatbot.core import registrar
@@ -15,6 +19,21 @@ from ncatbot.plugin import NcatBotPlugin
 from ncatbot.utils import get_config_manager, get_log
 
 LOG = get_log("AiChatPlugin")
+
+# 定位共享 core 包：依次尝试「打包进插件目录」「仓库根 / 容器根」两种布局。
+_PLUGIN_DIR = Path(__file__).resolve().parent
+for _candidate in (_PLUGIN_DIR, _PLUGIN_DIR.parent.parent):
+    if (_candidate / "core" / "__init__.py").exists():
+        if str(_candidate) not in sys.path:
+            sys.path.insert(0, str(_candidate))
+        break
+else:
+    raise ImportError(
+        "无法定位 core 包：请将 core/ 置于插件目录或容器根目录（见 qq/OPERATIONS.md）"
+    )
+
+from core.neko import Neko  # noqa: E402
+from core.chatHistory import ChatHistory  # noqa: E402
 
 
 def extract_prompt_from_event(message, bot_uin: str) -> Optional[str]:
@@ -64,9 +83,9 @@ def extract_prompt_from_event(message, bot_uin: str) -> Optional[str]:
 
 class AiChatPlugin(NcatBotPlugin):
     name = "ai_chat"
-    version = "0.1.0"
+    version = "0.2.0"
     author = "Meursault"
-    description = "群内 @离岛酱 触发 DeepSeek V4 Flash 问答（带每日限额）"
+    description = "群内 @离岛酱 触发月羽雪乃问答（共享 core/DeepSeek 后端，带每日限额与持久上下文）"
 
     async def on_load(self):
         self._bot_uin = str(get_config_manager().config.bot_uin)
@@ -75,16 +94,27 @@ class AiChatPlugin(NcatBotPlugin):
         }
         self._prompts = self._load_extra_yaml("prompts.yaml")
         self._messages = self._load_extra_yaml("messages.yaml")
-        self._deepseek = self.get_config("deepseek", {}) or {}
+
         rate_limit = self.get_config("rate_limit", {}) or {}
         self._daily_limit = max(1, int(rate_limit.get("daily_limit", 10)))
         self._timezone = timezone(timedelta(hours=int(rate_limit.get("utc_offset_hours", 8))))
+
+        context = self.get_config("context", {}) or {}
+        self._history_limit_normal = max(1, int(context.get("history_limit_normal", 10)))
+        self._history_limit_admin = max(1, int(context.get("history_limit_admin", 50)))
+
+        # 共享后端：SQLite 历史 + DeepSeek/月羽雪乃 人设（core）
+        self._chat_history = ChatHistory(dbPath=self._resolve_db_path())
+        self._neko = Neko(self._chat_history)
+
         LOG.info(
-            "%s 已加载 (bot_uin=%s, admins=%s, 每日限额=%d)",
+            "%s 已加载 (bot_uin=%s, admins=%s, 每日限额=%d, 上下文:普通%d/高权限%d)",
             self.name,
             self._bot_uin,
             sorted(self._admin_uins),
             self._daily_limit,
+            self._history_limit_normal,
+            self._history_limit_admin,
         )
 
     # ------------------------------------------------------------------
@@ -100,6 +130,14 @@ class AiChatPlugin(NcatBotPlugin):
         except Exception:
             LOG.exception("%s: 加载 %s 失败", self.name, filename)
             return {}
+
+    def _resolve_db_path(self) -> str:
+        """返回 SQLite 历史库路径；未配置时落到容器 data 目录（已挂载持久化）。"""
+        cfg = self.get_config("chat_history", {}) or {}
+        configured = str(cfg.get("db_path", "") or "").strip()
+        if configured:
+            return configured
+        return str(_PLUGIN_DIR.parent.parent / "data" / "ai_chat" / "chatHistory.db")
 
     @staticmethod
     def _today_str(tz) -> str:
@@ -120,48 +158,6 @@ class AiChatPlugin(NcatBotPlugin):
         day_map[uin] = used + 1
         self._save_data()
         return True
-
-    async def _ask_deepseek(self, prompt: str) -> str:
-        base_url = str(self._deepseek.get("base_url", "https://api.deepseek.com")).rstrip("/")
-        api_key = str(self._deepseek.get("api_key", "")).strip()
-        if not api_key:
-            raise RuntimeError("未配置 DeepSeek API Key")
-
-        payload: dict = {
-            "model": self._deepseek.get("model", "deepseek-v4-flash"),
-            "messages": [
-                {"role": "system", "content": self._prompts.get("system_prompt", "")},
-                {"role": "user", "content": prompt},
-            ],
-            "stream": False,
-            "max_tokens": int(self._deepseek.get("max_tokens", 1024)),
-        }
-        if self._deepseek.get("reasoning_effort"):
-            payload["reasoning_effort"] = str(self._deepseek["reasoning_effort"])
-        thinking = self._deepseek.get("thinking")
-        if thinking:
-            payload["thinking"] = thinking
-
-        timeout = aiohttp.ClientTimeout(
-            total=int(self._deepseek.get("timeout_seconds", 60))
-        )
-        async with aiohttp.ClientSession(timeout=timeout) as session:
-            async with session.post(
-                f"{base_url}/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {api_key}",
-                    "Content-Type": "application/json",
-                },
-                json=payload,
-            ) as resp:
-                data = await resp.json(content_type=None)
-                if resp.status != 200:
-                    raise RuntimeError(f"DeepSeek API 返回 {resp.status}: {data}")
-                try:
-                    content = data["choices"][0]["message"]["content"]
-                except (KeyError, IndexError, TypeError) as exc:
-                    raise RuntimeError(f"DeepSeek API 响应异常: {data}") from exc
-        return str(content).strip()
 
     # ------------------------------------------------------------------
     # 事件处理
@@ -187,13 +183,30 @@ class AiChatPlugin(NcatBotPlugin):
             )
             return
 
+        group_id = str(event.group_id)
+        # 上下文按「群 + 用户」隔离，避免跨群/跨用户串味
+        user_key = f"{group_id}:{uin}"
+        history_limit = (
+            self._history_limit_admin
+            if uin in self._admin_uins
+            else self._history_limit_normal
+        )
+
         try:
-            answer = await self._ask_deepseek(prompt)
+            answer = await self._neko.askNeko(user_key, prompt, historyLimit=history_limit)
         except Exception:
-            LOG.exception("%s: DeepSeek 调用失败", self.name)
+            LOG.exception("%s: LLM 调用失败", self.name)
             await event.reply(
                 self._messages.get("api_error", "呜……我刚刚遇到了一点问题，请稍后再试一次。")
             )
             return
 
+        if not answer:
+            await event.reply(
+                self._messages.get("api_error", "呜……我刚刚遇到了一点问题，请稍后再试一次。")
+            )
+            return
+
+        self._chat_history.addMessage(user_key, "user", prompt, chatId=group_id)
+        self._chat_history.addMessage(user_key, "bot", answer, chatId=group_id)
         await event.reply(answer)
