@@ -1,3 +1,7 @@
 # 引导文案（人设「月羽雪乃」已由 core/config/prompt_*.yaml 统一提供）
 no_prompt: |
   请先 @我 再输入问题哦，例如：@离岛酱 今天天气怎么样？
+
+# 群聊上下文拼装头（拼进 core 人设 prompt 的 {chatHistory} 之后）
+group_context_header: |
+  ## 群聊上下文（群友最近的聊天记录，仅作背景参考，勿直接复述）

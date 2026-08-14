@@ -1,7 +1,7 @@
 name = "ai_chat"
-version = "0.2.0"
+version = "0.4.0"
 main = "plugin.py"
 entry_class = "AiChatPlugin"
 author = "Meursault"
-description = "群内 @离岛酱 触发月羽雪乃问答（共享 core/DeepSeek 后端，带每日限额与持久上下文）"
+description = "群内 @离岛酱 触发月羽雪乃问答（共享 core/DeepSeek 后端，带每日限额、持久上下文、群聊上下文与引用回复感知）"
 

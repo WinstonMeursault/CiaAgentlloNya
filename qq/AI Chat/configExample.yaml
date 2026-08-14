@@ -10,10 +10,12 @@ rate_limit:
   daily_limit: 10
   utc_offset_hours: 8
 
-# 上下文窗口（最近 N 条消息，按「群+用户」隔离）
+# 上下文窗口（最近 N 条消息，按「群+用户」隔离；group_context_limit 为额外拼接的群聊上下文条数）
 context:
   history_limit_normal: 10   # 普通用户
   history_limit_admin: 50    # 高权限组
+  group_context_limit: 50    # 群聊上下文（0 = 关闭）
+  reply_context_enabled: true   # 是否解析「引用回复」并拼进 prompt
 
 # SQLite 历史库路径（留空则默认存到容器 data/ai_chat/chatHistory.db）
 chat_history:
