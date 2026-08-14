@@ -89,3 +89,18 @@ class TestDeepSeekPayload:
         neko = Neko(_DummyHistory(), configPath=_make_config(tmp_path))
         payload = neko._buildDeepSeekPayload("u", "x", historyLimit=10, stream=True)
         assert payload["stream"] is True
+
+class TestExtraContext:
+    def test_extra_context_appended_after_history(self, tmp_path: Path):
+        neko = Neko(_DummyHistory(), configPath=_make_config(tmp_path))
+        payload = neko._buildDeepSeekPayload(
+            "g1:u1", "你好", historyLimit=7, stream=False, extraContext="GROUP_CONTEXT_MARKER",
+        )
+        system = payload["messages"][0]["content"]
+        assert "[]\n\nGROUP_CONTEXT_MARKER" in system
+
+    def test_no_extra_context_omits_marker(self, tmp_path: Path):
+        neko = Neko(_DummyHistory(), configPath=_make_config(tmp_path))
+        payload = neko._buildDeepSeekPayload("g1:u1", "你好", historyLimit=7, stream=False)
+        system = payload["messages"][0]["content"]
+        assert "GROUP_CONTEXT_MARKER" not in system

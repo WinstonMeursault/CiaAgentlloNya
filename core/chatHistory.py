@@ -85,6 +85,24 @@ class ChatHistory:
                 ON chatHistory (username, timestamp DESC)
                 """
             )
+            connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS groupChatHistory (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    timestamp TEXT NOT NULL,
+                    group_id TEXT NOT NULL,
+                    user_id TEXT NOT NULL,
+                    role TEXT NOT NULL CHECK(role IN ('user', 'bot')),
+                    message TEXT NOT NULL
+                )
+                """
+            )
+            connection.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idxGroupChatHistoryGroupTimestamp
+                ON groupChatHistory (group_id, timestamp DESC)
+                """
+            )
 
     def addMessage(
         self,
@@ -126,6 +144,81 @@ class ChatHistory:
                     message,
                 ),
             )
+
+    def addGroupMessage(
+        self,
+        groupId: str,
+        userId: str,
+        role: str,
+        message: str,
+        timestamp: Optional[datetime] = None,
+    ) -> None:
+        """Persist a group chat message into the shared group context buffer.
+
+        Args:
+            groupId: Group the message belongs to.
+            userId: Speaker identifier (QQ number), or the bot's UIN for replies.
+            role: Role of the speaker, either 'user' or 'bot'.
+            message: Message body.
+            timestamp: Timestamp for the message; defaults to current UTC time.
+
+        Raises:
+            ValueError: If ``role`` is neither 'user' nor 'bot'.
+        """
+        if role not in {"user", "bot"}:
+            raise ValueError("role must be either 'user' or 'bot'")
+
+        if timestamp is None:
+            timestamp = datetime.now(timezone.utc)
+
+        with sqlite3.connect(self.dbPath) as connection:
+            connection.execute(
+                """
+                INSERT INTO groupChatHistory (timestamp, group_id, user_id, role, message)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (
+                    timestamp.isoformat(),
+                    str(groupId),
+                    str(userId),
+                    role,
+                    message,
+                ),
+            )
+
+    def getRecentGroupMessages(self, groupId: str, limit: int) -> List[Dict[str, str]]:
+        """Retrieve the latest group chat messages for a group in chronological order.
+
+        Args:
+            groupId: Group to filter by.
+            limit: Maximum number of rows to return.
+
+        Returns:
+            A list of dictionaries for each message ordered from oldest to newest.
+        """
+        if limit <= 0:
+            return []
+
+        with sqlite3.connect(self.dbPath) as connection:
+            connection.row_factory = sqlite3.Row
+            cursor = connection.execute(
+                """
+                SELECT timestamp, group_id, user_id, role, message
+                FROM (
+                    SELECT timestamp, group_id, user_id, role, message
+                    FROM groupChatHistory
+                    WHERE group_id = ?
+                    ORDER BY timestamp DESC
+                    LIMIT ?
+                )
+                ORDER BY timestamp ASC
+                """,
+                (str(groupId), limit),
+            )
+            rows = cursor.fetchall()
+
+        return [dict(row) for row in rows]
+
 
     def getRecentMessages(self, username: str, limit: int) -> List[Dict[str, str]]:
         """Retrieve the latest messages for a username in chronological order.

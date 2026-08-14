@@ -119,21 +119,28 @@ class Neko:
         """Build the aiohttp timeout from the configured ``timeout_seconds``."""
         return aioHttpClientTimeout(total=int(self.llmConfig.get("timeout_seconds", 60)))
 
-    def _generateSystemPrompt(self, userName: str, historyLimit: int) -> str:
+    def _generateSystemPrompt(
+        self,
+        userName: str,
+        historyLimit: int,
+        extraContext: Optional[str] = None,
+    ) -> str:
         """Generate the persona/system prompt with context and current time.
 
         Args:
             userName: The identity used to scope chat history lookup.
             historyLimit: Number of recent messages to inject as context.
+            extraContext: Optional pre-formatted text appended after the user
+                history inside {chatHistory} (e.g. group chat context).
 
         Returns:
             The filled ``setNeko`` prompt string.
         """
+        history = str(self.chatHistory.getRecentMessages(userName, historyLimit))
+        if extraContext:
+            history = f"{history}\n\n{extraContext}"
         setNekoPrompt = self.nekomimiPrompt["setNeko"]
-        setNekoPrompt = setNekoPrompt.replace(
-            "{chatHistory}",
-            str(self.chatHistory.getRecentMessages(userName, historyLimit)),
-        )
+        setNekoPrompt = setNekoPrompt.replace("{chatHistory}", history)
         setNekoPrompt = setNekoPrompt.replace("{time}", asctime(localtime(time())))
         return setNekoPrompt
 
@@ -149,7 +156,12 @@ class Neko:
         return self.nekomimiPrompt["askNeko"] + request
 
     def _buildDeepSeekPayload(
-        self, userName: str, request: str, historyLimit: int, stream: bool
+        self,
+        userName: str,
+        request: str,
+        historyLimit: int,
+        stream: bool,
+        extraContext: Optional[str] = None,
     ) -> dict:
         """Build the OpenAI-compatible chat/completions payload for DeepSeek."""
         payload = {
@@ -157,7 +169,7 @@ class Neko:
             "messages": [
                 {
                     "role": "system",
-                    "content": self._generateSystemPrompt(userName, historyLimit),
+                    "content": self._generateSystemPrompt(userName, historyLimit, extraContext),
                 },
                 {"role": "user", "content": self._generateUserPrompt(request)},
             ],
@@ -172,10 +184,15 @@ class Neko:
         return payload
 
     def _buildResponsesPayload(
-        self, userName: str, request: str, historyLimit: int, stream: bool
+        self,
+        userName: str,
+        request: str,
+        historyLimit: int,
+        stream: bool,
+        extraContext: Optional[str] = None,
     ) -> dict:
         """Build the legacy Responses API payload (single-string ``input``)."""
-        prompt = self._generateSystemPrompt(userName, historyLimit) + self._generateUserPrompt(request)
+        prompt = self._generateSystemPrompt(userName, historyLimit, extraContext) + self._generateUserPrompt(request)
         return {
             "model": self.llmConfig["model"],
             "input": prompt,
@@ -262,7 +279,11 @@ class Neko:
     # ------------------------------------------------------------------
 
     async def askNeko(
-        self, userName: str, request: str, historyLimit: int = DEFAULT_HISTORY_LIMIT
+        self,
+        userName: str,
+        request: str,
+        historyLimit: int = DEFAULT_HISTORY_LIMIT,
+        extraContext: Optional[str] = None,
     ) -> str:
         """Send an async request to the LLM and return the complete response.
 
@@ -278,10 +299,10 @@ class Neko:
         self.logger.info("Asking Neko...")
 
         if self.apiProvider == "DeepSeek":
-            data = self._buildDeepSeekPayload(userName, request, historyLimit, stream=False)
+            data = self._buildDeepSeekPayload(userName, request, historyLimit, stream=False, extraContext=extraContext)
             parser = self._parseChatCompletions
         else:
-            data = self._buildResponsesPayload(userName, request, historyLimit, stream=False)
+            data = self._buildResponsesPayload(userName, request, historyLimit, stream=False, extraContext=extraContext)
             parser = self._parseText
 
         async with aioHttpClientSession(timeout=self._timeout()) as session:
@@ -293,7 +314,11 @@ class Neko:
                 return parser(await res.json())
 
     async def askNekoStream(
-        self, userName: str, request: str, historyLimit: int = DEFAULT_HISTORY_LIMIT
+        self,
+        userName: str,
+        request: str,
+        historyLimit: int = DEFAULT_HISTORY_LIMIT,
+        extraContext: Optional[str] = None,
     ) -> AsyncGenerator[str, None]:
         """Send an async streaming request to the LLM.
 
@@ -310,10 +335,10 @@ class Neko:
         self.logger.info("Asking Neko with streaming response...")
 
         if self.apiProvider == "DeepSeek":
-            data = self._buildDeepSeekPayload(userName, request, historyLimit, stream=True)
+            data = self._buildDeepSeekPayload(userName, request, historyLimit, stream=True, extraContext=extraContext)
             parser = self._parseChatCompletionsStream
         else:
-            data = self._buildResponsesPayload(userName, request, historyLimit, stream=True)
+            data = self._buildResponsesPayload(userName, request, historyLimit, stream=True, extraContext=extraContext)
             parser = self._parseTextStream
 
         try:
