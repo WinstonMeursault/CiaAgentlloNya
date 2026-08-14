@@ -26,7 +26,7 @@ LLM 后端已统一到共享 [`core/`](../../core/)（`Neko` + `ChatHistory`）�
 
 ## 部署注意
 
-插件依赖 `core` 包。推荐把仓库 `core/` 目录复制到 `plugins/ai_chat/core/`（随 `plugins/` 挂载一起持久化），并在容器内准备好 `core/config/config.yaml`。详见 [`qq/OPERATIONS.md`](../OPERATIONS.md)。
+插件依赖 `core` 包。推荐把仓库 `core/` 目录复制到 `plugins/AI Chat/core/`（随 `plugins/` 挂载一起持久化），并在容器内准备好 `core/config/config.yaml`。详见 [`qq/OPERATIONS.md`](../OPERATIONS.md)。
 
 ## 说明
 

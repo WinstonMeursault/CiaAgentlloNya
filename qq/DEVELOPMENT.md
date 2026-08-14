@@ -81,7 +81,7 @@
 
 ## 10. 部署与排查
 
-- core/ 需复制进容器 plugins/ai_chat/core/（随 plugins 挂载持久化）。
+- core/ 需复制进容器 plugins/AI Chat/core/（随 plugins 挂载持久化）。
 - .py 改完热重载；.yaml 改完必须 docker restart ncatbot。
 - groupChatHistory.nickname 列：旧库在下次启动时自动 ALTER TABLE 迁移。
 - 看插件日志：docker logs -f ncatbot。

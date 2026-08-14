@@ -36,7 +36,7 @@ LLM 后端（provider / base_url / api_key / model / thinking / reasoning_effort
 
 ## 部署注意
 
-插件依赖共享 `core` 包。将仓库 `core/` 目录复制到部署后的插件目录（`plugins/ai_chat/core/`）——插件会从「插件目录」或「容器根目录」自动定位 `core`。具体步骤见 `OPERATIONS.md`。
+插件依赖共享 `core` 包。将仓库 `core/` 目录复制到部署后的插件目录（`plugins/AI Chat/core/`）——插件会从「插件目录」或「容器根目录」自动定位 `core`。具体步骤见 `OPERATIONS.md`。
 
 ## 运行
 

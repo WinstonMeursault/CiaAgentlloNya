@@ -36,7 +36,7 @@ Copy `AI Chat/configExample.yaml` to `AI Chat/config.yaml` and fill in the QQ-si
 
 ## Deployment note
 
-The plugin imports the shared `core` package. Copy the repository `core/` directory into the deployed plugin folder (`plugins/ai_chat/core/`) — the plugin resolves `core` automatically from either the plugin directory or the container root. See `OPERATIONS.md` for the exact steps.
+The plugin imports the shared `core` package. Copy the repository `core/` directory into the deployed plugin folder (`plugins/AI Chat/core/`) — the plugin resolves `core` automatically from either the plugin directory or the container root. See `OPERATIONS.md` for the exact steps.
 
 ## Running
 
