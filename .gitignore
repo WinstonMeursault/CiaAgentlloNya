@@ -218,3 +218,7 @@ __marimo__/
 
 # Database
 /core/database/chatHistory.db
+
+# QQ bot (internal ops manual + real config with secrets)
+/qq/OPERATIONS.md
+/qq/AI Chat/config.yaml
