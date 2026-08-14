@@ -1,0 +1,7 @@
+name = "ai_chat"
+version = "0.1.0"
+main = "plugin.py"
+entry_class = "AiChatPlugin"
+author = "Meursault"
+description = "群内 @离岛酱 触发 DeepSeek V4 Flash 问答，带每日限额"
+
