@@ -1,4 +1,4 @@
-# AGENTS.md - Developer Guide for CiaAgentlloNya
+# AGENTS.md - Developer Guide for CiaBotlloNya
 
 ## Project Overview
 A Telegram nekomimi agent bot with LLM integration and persistent chat history.
@@ -134,7 +134,7 @@ TelegramBot:
 
 ## File Structure
 ```
-CiaAgentlloNya/
+CiaBotlloNya/
 ├── bot.py            # Telegram bot entry point
 ├── neko.py           # LLM API client
 ├── chatHistory.py    # SQLite chat storage

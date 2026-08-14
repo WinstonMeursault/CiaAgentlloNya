@@ -1,5 +1,5 @@
 """
-Telegram bot application module for the CiaAgentlloNya nekomimi assistant.
+Telegram bot application module for the CiaBotlloNya nekomimi assistant.
 
 This module defines the main Bot class which handles Telegram updates,
 manages user configuration, and interacts with the Neko LLM client

@@ -1,8 +1,8 @@
-# CiaAgentlloNya
+# CiaBotlloNya
 
 🌐 Languages: [![English](https://img.shields.io/badge/README-English-green)](README.md) [![中文](https://img.shields.io/badge/README-%E4%B8%AD%E6%96%87-blue)](README_CN.md)
 
-这是一个**个人Telrgram猫娘**Agent机器人。 Cia Agent llo~ (∠·ω< )⌒★ Nya~~~
+这是一个**个人Telrgram猫娘**Agent机器人。 Cia Bot llo~ (∠·ω< )⌒★ Nya~~~
 
 ## 配置
 
