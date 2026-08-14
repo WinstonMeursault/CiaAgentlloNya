@@ -11,6 +11,7 @@ A multi-platform nekomimi agent bot with LLM integration and persistent chat his
 | `core/config/` | Shared LLM YAML configuration |
 | `telegram/config/` | Telegram YAML configuration |
 | `qq/AI Chat/` | QQ bot ai_chat plugin (NcatBot) |
+| `qq/DEVELOPMENT.md` | QQ plugin dev notes: NcatBot internals, message/data model, gotchas |
 
 ## Running the Bot
 ```bash
@@ -159,6 +160,7 @@ CiaBotlloNya/
 │   └── config/           # Telegram YAML configuration
 ├── qq/                   # QQ bot (NcatBot + ai_chat plugin)
 │   ├── AI Chat/          # ai_chat plugin
+│   ├── DEVELOPMENT.md    # QQ plugin dev notes (framework internals + data model + gotchas)
 │   └── README.md
 ├── README.md             # English README
 ├── README_CN.md          # Chinese README
