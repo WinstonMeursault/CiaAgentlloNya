@@ -16,6 +16,8 @@ context:
   history_limit_admin: 50    # 高权限组
   group_context_limit: 50    # 群聊上下文（0 = 关闭）
   reply_context_enabled: true   # 是否解析「引用回复」并拼进 prompt
+  max_history_rows: 2000        # 用户上下文每用户最多保留条数（0 = 不清理）
+  max_group_rows: 5000          # 群聊上下文每群最多保留条数（0 = 不清理）
 
 # SQLite 历史库路径（留空则默认存到容器 data/ai_chat/chatHistory.db）
 chat_history:

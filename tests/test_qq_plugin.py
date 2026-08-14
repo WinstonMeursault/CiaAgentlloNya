@@ -53,6 +53,8 @@ extract_prompt_from_event = _plugin.extract_prompt_from_event
 extract_text_from_event = _plugin.extract_text_from_event
 extract_reply_id = _plugin.extract_reply_id
 format_quoted_context = _plugin.format_quoted_context
+summarize_message = _plugin.summarize_message
+extract_sender_name = _plugin.extract_sender_name
 
 
 def _obj(seg_type: str, **kwargs):
@@ -134,7 +136,7 @@ class TestFormatGroupContext:
         h.addGroupMessage("g1", "1002", "user", "其他人说的")
         h.addGroupMessage("g1", "123", "bot", "给别人的回复")
 
-        ctx = plugin._format_group_context("g1", "g1:1001", 50)
+        ctx = plugin._format_group_context("g1", "1001", 50)
 
         assert "其他人说的" in ctx
         assert "给别人的回复" in ctx
@@ -145,11 +147,41 @@ class TestFormatGroupContext:
     def test_limit_zero_disabled(self, tmp_path):
         plugin = self._make_plugin(tmp_path, group_context_limit=0)
         plugin._chat_history.addGroupMessage("g1", "1002", "user", "x")
-        assert plugin._format_group_context("g1", "g1:1001", 50) == ""
+        assert plugin._format_group_context("g1", "1001", 50) == ""
 
     def test_empty_group_returns_empty(self, tmp_path):
         plugin = self._make_plugin(tmp_path)
-        assert plugin._format_group_context("g1", "g1:1001", 50) == ""
+        assert plugin._format_group_context("g1", "1001", 50) == ""
+    def test_dedup_keeps_other_users_identical_text(self, tmp_path):
+        plugin = self._make_plugin(tmp_path)
+        h = plugin._chat_history
+        h.addMessage("g1:1001", "user", "哈哈", chatId="g1")
+        h.addGroupMessage("g1", "1001", "user", "哈哈")
+        h.addGroupMessage("g1", "1002", "user", "哈哈")
+
+        ctx = plugin._format_group_context("g1", "1001", 50)
+        assert ctx.count("哈哈") == 1
+        assert "1002" in ctx
+
+    def test_dedup_keeps_bot_reply_to_others(self, tmp_path):
+        plugin = self._make_plugin(tmp_path)
+        h = plugin._chat_history
+        h.addMessage("g1:1001", "bot", "我的回答", chatId="g1")
+        h.addGroupMessage("g1", "123", "bot", "我的回答")
+        h.addGroupMessage("g1", "123", "bot", "给别人的")
+
+        ctx = plugin._format_group_context("g1", "1001", 50)
+        assert "给别人的" in ctx
+        assert "我的回答" not in ctx
+
+    def test_nickname_display(self, tmp_path):
+        plugin = self._make_plugin(tmp_path)
+        h = plugin._chat_history
+        h.addGroupMessage("g1", "1002", "user", "hi", nickname="江星繁")
+
+        ctx = plugin._format_group_context("g1", "1001", 50)
+        assert "江星繁" in ctx
+        assert "1002" not in ctx
 
 class TestExtractReplyId:
     def test_dict_reply(self):
@@ -233,3 +265,39 @@ class TestResolveReplyContext:
         event = SimpleNamespace(api=SimpleNamespace(query=SimpleNamespace(get_msg=boom)))
         out = asyncio.run(plugin._resolve_reply_context(event, "1"))
         assert out == ""
+
+class TestSummarizeMessage:
+    def test_text(self):
+        assert summarize_message([{"type": "text", "data": {"text": "你好"}}]) == "你好"
+
+    def test_image_placeholder(self):
+        assert summarize_message([_obj("image", url="x")]) == "[图片]"
+
+    def test_record_placeholder(self):
+        assert summarize_message([{"type": "record", "data": {"url": "x"}}]) == "[语音]"
+
+    def test_face_placeholder(self):
+        assert summarize_message([_obj("face", id="1")]) == "[表情]"
+
+    def test_empty_at_only(self):
+        assert summarize_message([_obj("at", user_id="123")]) == ""
+
+    def test_unknown_non_text(self):
+        assert summarize_message([_obj("video", url="x")]) == "[非文本消息]"
+
+
+class TestExtractSenderName:
+    def test_card_priority(self):
+        sender = SimpleNamespace(card="江繁繁", nickname="江星繁", user_id="2727400364")
+        assert extract_sender_name(sender) == "江繁繁"
+
+    def test_nickname_fallback(self):
+        sender = SimpleNamespace(card="", nickname="江星繁", user_id="2727400364")
+        assert extract_sender_name(sender) == "江星繁"
+
+    def test_user_id_fallback(self):
+        sender = SimpleNamespace(card=None, nickname=None, user_id="2727400364")
+        assert extract_sender_name(sender) == "2727400364"
+
+    def test_none(self):
+        assert extract_sender_name(None) is None

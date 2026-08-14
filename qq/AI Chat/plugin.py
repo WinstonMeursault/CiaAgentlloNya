@@ -116,6 +116,38 @@ def format_quoted_context(sender: str, content: str) -> str:
     return f"（引用回复 {sender}：{content}）"
 
 
+def summarize_message(message) -> str:
+    """返回消息文本；无文本时用非文本段占位，全空则返回空串。"""
+    text = extract_text_from_event(message)
+    if text:
+        return text
+    for seg_type, _ in _iter_segments(message):
+        if seg_type in ("at", "reply"):
+            continue
+        if seg_type == "image":
+            return "[图片]"
+        if seg_type == "record":
+            return "[语音]"
+        if seg_type in ("face", "marketFace"):
+            return "[表情]"
+        return "[非文本消息]"
+    return ""
+
+
+def extract_sender_name(sender) -> Optional[str]:
+    """从 sender 取显示名：群名片 > 昵称 > QQ号；取不到返回 None。"""
+    if sender is None:
+        return None
+    card = getattr(sender, "card", None)
+    if card:
+        return str(card)
+    nickname = getattr(sender, "nickname", None)
+    if nickname:
+        return str(nickname)
+    user_id = getattr(sender, "user_id", None)
+    return str(user_id) if user_id else None
+
+
 class AiChatPlugin(NcatBotPlugin):
     name = "ai_chat"
     version = "0.4.0"
@@ -139,6 +171,8 @@ class AiChatPlugin(NcatBotPlugin):
         self._history_limit_admin = max(1, int(context.get("history_limit_admin", 50)))
         self._group_context_limit = max(0, int(context.get("group_context_limit", 50)))
         self._reply_context_enabled = bool(context.get("reply_context_enabled", True))
+        self._max_history_rows = max(0, int(context.get("max_history_rows", 2000)))
+        self._max_group_rows = max(0, int(context.get("max_group_rows", 5000)))
 
         # 共享后端：SQLite 历史 + DeepSeek/月羽雪乃 人设（core）
         self._chat_history = ChatHistory(dbPath=self._resolve_db_path())
@@ -235,19 +269,31 @@ class AiChatPlugin(NcatBotPlugin):
             content = "[非文本消息]"
         return format_quoted_context(str(sender_name), content)
 
-    def _record_group_message(self, group_id: str, uin: str, role: str, message: str) -> None:
-        """把一条消息写入群聊上下文（非致命：失败仅记日志，不阻断回复）。"""
+    def _record_group_message(
+        self, group_id: str, uin: str, role: str, message: str, nickname: Optional[str] = None
+    ) -> None:
+        """把一条消息写入群聊上下文（非致命；关闭群聊上下文时跳过）。"""
+        if self._group_context_limit <= 0:
+            return
         try:
-            self._chat_history.addGroupMessage(group_id, uin, role, message)
+            self._chat_history.addGroupMessage(group_id, uin, role, message, nickname=nickname)
+            if self._max_group_rows > 0:
+                self._chat_history.pruneGroupMessages(group_id, self._max_group_rows)
         except Exception:
             LOG.exception("%s: 群聊上下文写入失败，已忽略", self.name)
 
-    def _format_group_context(self, group_id: str, user_key: str, history_limit: int) -> str:
+    def _record_user_message(self, user_key: str, role: str, message: str, chatId: str) -> None:
+        """把一条消息写入用户上下文，并按配置清理旧记录。"""
+        self._chat_history.addMessage(user_key, role, message, chatId=chatId)
+        if self._max_history_rows > 0:
+            self._chat_history.pruneMessages(user_key, self._max_history_rows)
+
+    def _format_group_context(self, group_id: str, uin: str, history_limit: int) -> str:
         """把「不在该用户对话记录里的」群聊上下文格式化为可拼进 prompt 的文本。
 
         Args:
             group_id: 群号。
-            user_key: 当前用户的上下文键（{群}:{用户}），用于去重。
+            uin: 当前用户 QQ，用于精确去重其本人发言。
             history_limit: 该用户注入的上下文条数，去重范围与其保持一致。
 
         Returns:
@@ -260,13 +306,18 @@ class AiChatPlugin(NcatBotPlugin):
         )
         if not records:
             return ""
-        seen = {
-            (row["role"], row["message"])
-            for row in self._chat_history.getRecentMessages(user_key, history_limit)
+        bot_texts = {
+            row["message"]
+            for row in self._chat_history.getRecentMessages(f"{group_id}:{uin}", history_limit)
+            if row["role"] == "bot"
         }
-        filtered = [
-            row for row in records if (row["role"], row["message"]) not in seen
-        ]
+        filtered = []
+        for row in records:
+            if row["role"] == "user" and row["user_id"] == uin:
+                continue
+            if row["role"] == "bot" and row["message"] in bot_texts:
+                continue
+            filtered.append(row)
         if not filtered:
             return ""
         header = self._prompts.get(
@@ -274,7 +325,10 @@ class AiChatPlugin(NcatBotPlugin):
         )
         lines = [header]
         for row in filtered:
-            speaker = "机器人" if row["role"] == "bot" else row["user_id"]
+            if row["role"] == "bot":
+                speaker = "机器人"
+            else:
+                speaker = row.get("nickname") or row["user_id"]
             lines.append(f"- {speaker}: {row['message']}")
         return "\n".join(lines)
 
@@ -282,24 +336,39 @@ class AiChatPlugin(NcatBotPlugin):
     async def on_group_message(self, event: GroupMessageEvent):
         group_id = str(event.group_id)
         uin = str(event.user_id)
+        user_key = f"{group_id}:{uin}"
 
         try:
-            text = extract_text_from_event(event.message)
+            text = summarize_message(event.message)
             prompt = extract_prompt_from_event(event.message, self._bot_uin)
             reply_id = extract_reply_id(event.message)
         except Exception:
             LOG.exception("%s: 消息解析失败，已跳过", self.name)
             return
 
-        # 未 @机器人：作为普通群聊记入群聊上下文后直接返回
+        nickname = extract_sender_name(getattr(event, "sender", None))
+
+        # 解析引用内容（若有），供群流记录与 prompt 使用
+        quoted = ""
+        if reply_id and self._reply_context_enabled:
+            quoted = await self._resolve_reply_context(event, reply_id)
+
+        # 群聊上下文记录内容：引用回复时附带被引用内容
+        group_text = text
+        if quoted and text:
+            group_text = f"{quoted} {text}"
+        elif quoted:
+            group_text = quoted
+
+        # 1) 立即写入群聊上下文（真实接收时间）
+        if group_text:
+            self._record_group_message(group_id, uin, "user", group_text, nickname)
+        # 2) 写入用户上下文（原文，用户维度记忆）
+        if text:
+            self._record_user_message(user_key, "user", text, group_id)
+
+        # 3) 未 @机器人：到此结束
         if prompt is None:
-            recorded = text
-            if reply_id and self._reply_context_enabled:
-                quoted = await self._resolve_reply_context(event, reply_id)
-                if quoted:
-                    recorded = (f"{quoted} {text}").strip() if text else quoted
-            if recorded:
-                self._record_group_message(group_id, uin, "user", recorded)
             return
 
         if not prompt:
@@ -312,20 +381,16 @@ class AiChatPlugin(NcatBotPlugin):
             )
             return
 
-        # 引用回复：把被引用的内容拼进 prompt，让 bot 知道在回复什么
-        if reply_id and self._reply_context_enabled:
-            quoted = await self._resolve_reply_context(event, reply_id)
-            if quoted:
-                prompt = f"{quoted}\n{prompt}"
+        # 引用回复拼进 prompt，让 bot 知道在回复什么
+        if quoted:
+            prompt = f"{quoted}\n{prompt}"
 
-        # 上下文按「群 + 用户」隔离，避免跨群/跨用户串味
-        user_key = f"{group_id}:{uin}"
         history_limit = (
             self._history_limit_admin
             if uin in self._admin_uins
             else self._history_limit_normal
         )
-        group_context = self._format_group_context(group_id, user_key, history_limit)
+        group_context = self._format_group_context(group_id, uin, history_limit)
 
         try:
             answer = await self._neko.askNeko(
@@ -344,9 +409,6 @@ class AiChatPlugin(NcatBotPlugin):
             )
             return
 
-        self._chat_history.addMessage(user_key, "user", prompt, chatId=group_id)
-        self._chat_history.addMessage(user_key, "bot", answer, chatId=group_id)
-        # 本次 @问答与机器人回复一并记入群聊上下文（供后续拼装/去重）
-        self._record_group_message(group_id, uin, "user", prompt)
+        self._record_user_message(user_key, "bot", answer, group_id)
         self._record_group_message(group_id, self._bot_uin, "bot", answer)
         await event.reply(answer)
