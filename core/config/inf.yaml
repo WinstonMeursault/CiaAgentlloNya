@@ -1,2 +1,4 @@
+# 仅当 config.yaml 的 llm.api_provider 为 Opencode Zen（旧 Responses 路径）时使用。
+# 默认 DeepSeek 走 {base_url}/chat/completions，不依赖本文件。
 API Provider URL:
     Opencode Zen: https://opencode.ai/zen/v1/responses

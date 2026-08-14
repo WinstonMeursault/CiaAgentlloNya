@@ -1,5 +1,24 @@
-Nekomimi:
-    API Provider: xxxxxx
-    Model: xxxxxx
-    Token: xx-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-    Language: xx
+# 共享 LLM 配置模板（Telegram 与 QQ 共用）
+# 复制本文件为 config.yaml 并填入真实值（config.yaml 含密钥、已被 gitignore，不入库）。
+#
+# 字段说明：
+#   api_provider      DeepSeek（chat/completions，默认）| Opencode Zen（/v1/responses，旧路径）
+#   base_url          DeepSeek 使用；provider=Opencode Zen 时忽略
+#   api_key           鉴权 Key（Opencode Zen 下等同旧 Token 字段）
+#   model             模型名（DeepSeek 当前可用 deepseek-v4-flash / deepseek-v4-pro）
+#   thinking          思考模式开关（DeepSeek 专属，可省略）
+#   reasoning_effort  思考强度（DeepSeek 专属，可省略）
+#   max_tokens        输出上限
+#   timeout_seconds   请求超时（秒）
+#   language          人设语言：CN | EN（决定 prompt_CN/EN.yaml）
+llm:
+  api_provider: DeepSeek
+  base_url: https://api.deepseek.com
+  api_key: sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+  model: deepseek-v4-flash
+  thinking:
+    type: enabled
+  reasoning_effort: medium
+  max_tokens: 1024
+  timeout_seconds: 60
+  language: CN

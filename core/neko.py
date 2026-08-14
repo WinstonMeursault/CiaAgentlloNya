@@ -2,8 +2,16 @@
 Nekomimi LLM API client module.
 
 This module provides the Neko class, which handles communication with
-LLM providers to generate cat-girl persona responses based on
-user input and conversation history.
+LLM providers to generate cat-girl persona responses based on user
+input and conversation history.
+
+Supported providers:
+
+- ``DeepSeek`` (default): OpenAI-compatible ``chat/completions`` endpoint.
+- ``Opencode Zen`` (legacy): OpenAI ``responses`` endpoint.
+
+Configuration lives in ``core/config/config.yaml`` under an ``llm``
+section (see ``configExample.yaml`` for the exact shape).
 """
 
 from os import path as osPath
@@ -12,12 +20,16 @@ from json import loads as jsonLoads, JSONDecodeError
 
 from time import time, localtime, asctime
 from aiohttp import ClientSession as aioHttpClientSession
+from aiohttp import ClientTimeout as aioHttpClientTimeout
 from loguru import logger
 from yaml import safe_load as yamlSafeLoad
 
 from core.chatHistory import ChatHistory
 
 currentDir = osPath.dirname(osPath.realpath(__file__))
+
+#: Default number of recent messages used as conversation context.
+DEFAULT_HISTORY_LIMIT = 20
 
 
 class Neko:
@@ -29,205 +41,284 @@ class Neko:
 
     Attributes:
         chatHistory: Reference to the chat history storage instance.
-        nekomimiConfig: Configuration settings loaded from config.yaml.
+        llmConfig: Configuration settings loaded from config.yaml ``llm`` section.
         nekomimiPrompt: Prompt templates loaded from the language-specific YAML file.
+        apiProvider: Provider name deciding which request/response format to use.
         postUrl: API endpoint URL for the configured provider.
         postHeaders: HTTP headers including authorization token.
     """
 
-    def __init__(self, chatHistory: ChatHistory) -> None:
+    def __init__(self, chatHistory: ChatHistory, configPath: Optional[str] = None) -> None:
         """Initialize the Nekomimi LLM client.
 
         Loads configuration files and sets up the API connection parameters.
 
         Args:
             chatHistory: Chat history storage instance for context retrieval.
+            configPath: Optional path to ``config.yaml``; defaults to
+                ``core/config/config.yaml``. Useful for testing.
 
         Raises:
             FileNotFoundError: If configuration files are missing.
             KeyError: If required configuration keys are not found.
             ValueError: If an unsupported language is configured.
+            RuntimeError: If the configured ``api_key`` is missing or empty.
             Exception: If configuration loading fails for any other reason.
         """
         self.logger = logger.bind(module="neko")
         self.chatHistory = chatHistory
 
+        if configPath is None:
+            configPath = currentDir + "/config/config.yaml"
+
         try:
-            with open(currentDir + "/config/config.yaml", "r") as yamlConfig:
-                self.nekomimiConfig = yamlSafeLoad(yamlConfig)["Nekomimi"]
+            with open(configPath, "r", encoding="utf-8") as yamlConfig:
+                fullConfig = yamlSafeLoad(yamlConfig)
+            self.llmConfig = fullConfig["llm"]
 
-            with open(currentDir + "/config/inf.yaml", "r") as yamlInf:
-                self.inf = yamlSafeLoad(yamlInf)
-
-            if self.nekomimiConfig["Language"] == "CN":
-                with open(currentDir + "/config/prompt_CN.yaml", "r") as yamlPrompt:
-                    self.nekomimiPrompt = yamlSafeLoad(yamlPrompt)
-            elif self.nekomimiConfig["Language"] == "EN":
-                with open(currentDir + "/config/prompt_EN.yaml", "r") as yamlPrompt:
-                    self.nekomimiPrompt = yamlSafeLoad(yamlPrompt)
+            language = str(self.llmConfig.get("language", "CN"))
+            if language == "CN":
+                promptFile = "prompt_CN.yaml"
+            elif language == "EN":
+                promptFile = "prompt_EN.yaml"
             else:
                 raise ValueError(
-                    f"Unsupported language: {self.nekomimiConfig['Language']}. "
-                    "Supported values are 'CN' and 'EN'."
+                    f"Unsupported language: {language}. Supported values are 'CN' and 'EN'."
                 )
+
+            with open(currentDir + "/config/" + promptFile, "r", encoding="utf-8") as yamlPrompt:
+                self.nekomimiPrompt = yamlSafeLoad(yamlPrompt)
 
             self.logger.info("Configuration loaded successfully.")
         except Exception as e:
             self.logger.error("Failed to load configuration: " + str(e))
             raise
 
-        self.postUrl = self.inf["API Provider URL"][self.nekomimiConfig["API Provider"]]
+        apiKey = str(self.llmConfig.get("api_key", "")).strip()
+        if not apiKey:
+            raise RuntimeError("未配置 LLM api_key（core/config/config.yaml 的 llm.api_key）")
+
+        self.apiProvider = str(self.llmConfig.get("api_provider", "DeepSeek")).strip()
+        if self.apiProvider == "DeepSeek":
+            baseUrl = str(
+                self.llmConfig.get("base_url", "https://api.deepseek.com")
+            ).rstrip("/")
+            self.postUrl = baseUrl + "/chat/completions"
+        else:
+            # Legacy Responses API path (e.g. "Opencode Zen").
+            with open(currentDir + "/config/inf.yaml", "r", encoding="utf-8") as yamlInf:
+                inf = yamlSafeLoad(yamlInf)
+            self.postUrl = inf["API Provider URL"][self.apiProvider]
+
         self.postHeaders = {
-            "Authorization": "Bearer " + self.nekomimiConfig["Token"],
+            "Authorization": "Bearer " + apiKey,
             "Content-Type": "application/json",
         }
 
-    def __generatePrompt(self, userName: str, request: str) -> str:
-        """Generate the complete prompt with context and user request.
+    def _timeout(self) -> aioHttpClientTimeout:
+        """Build the aiohttp timeout from the configured ``timeout_seconds``."""
+        return aioHttpClientTimeout(total=int(self.llmConfig.get("timeout_seconds", 60)))
 
-        Combines the persona setup prompt, chat history context, current time,
-        and the user's request into a single prompt string.
+    def _generateSystemPrompt(self, userName: str, historyLimit: int) -> str:
+        """Generate the persona/system prompt with context and current time.
 
         Args:
-            userName: The name of the user asking the question.
+            userName: The identity used to scope chat history lookup.
+            historyLimit: Number of recent messages to inject as context.
+
+        Returns:
+            The filled ``setNeko`` prompt string.
+        """
+        setNekoPrompt = self.nekomimiPrompt["setNeko"]
+        setNekoPrompt = setNekoPrompt.replace(
+            "{chatHistory}",
+            str(self.chatHistory.getRecentMessages(userName, historyLimit)),
+        )
+        setNekoPrompt = setNekoPrompt.replace("{time}", asctime(localtime(time())))
+        return setNekoPrompt
+
+    def _generateUserPrompt(self, request: str) -> str:
+        """Generate the user message prompt from the incoming request.
+
+        Args:
             request: The user's message to respond to.
 
         Returns:
-            The complete prompt string ready for LLM submission.
+            The ``askNeko`` template concatenated with the request.
         """
-        self.logger.info("Generating prompt...")
+        return self.nekomimiPrompt["askNeko"] + request
 
-        setNekoPrompt = self.nekomimiPrompt["setNeko"]
-        setNekoPrompt = setNekoPrompt.replace(
-            "{chatHistory}", str(self.chatHistory.getRecentMessages(userName, 20))
-        )
-        setNekoPrompt = setNekoPrompt.replace("{time}", asctime(localtime(time())))
+    def _buildDeepSeekPayload(
+        self, userName: str, request: str, historyLimit: int, stream: bool
+    ) -> dict:
+        """Build the OpenAI-compatible chat/completions payload for DeepSeek."""
+        payload = {
+            "model": self.llmConfig["model"],
+            "messages": [
+                {
+                    "role": "system",
+                    "content": self._generateSystemPrompt(userName, historyLimit),
+                },
+                {"role": "user", "content": self._generateUserPrompt(request)},
+            ],
+            "stream": stream,
+            "max_tokens": int(self.llmConfig.get("max_tokens", 1024)),
+        }
+        if self.llmConfig.get("reasoning_effort"):
+            payload["reasoning_effort"] = str(self.llmConfig["reasoning_effort"])
+        thinking = self.llmConfig.get("thinking")
+        if thinking:
+            payload["thinking"] = thinking
+        return payload
 
-        nekoPrompt = setNekoPrompt + self.nekomimiPrompt["askNeko"] + request
-        self.logger.debug("Generated prompt: " + nekoPrompt)
+    def _buildResponsesPayload(
+        self, userName: str, request: str, historyLimit: int, stream: bool
+    ) -> dict:
+        """Build the legacy Responses API payload (single-string ``input``)."""
+        prompt = self._generateSystemPrompt(userName, historyLimit) + self._generateUserPrompt(request)
+        return {
+            "model": self.llmConfig["model"],
+            "input": prompt,
+            "stream": stream,
+        }
 
-        return nekoPrompt
+    # ------------------------------------------------------------------
+    # Response parsing (pure helpers kept static for testability)
+    # ------------------------------------------------------------------
 
-    def __parseText(self, resp: dict) -> str:
-        """Parse the LLM response to extract text content.
+    @staticmethod
+    def _parseChatCompletions(resp: dict) -> str:
+        """Extract the assistant text from a chat/completions response.
 
-        Extracts all output_text content from the API response structure.
-
-        Args:
-            resp: The JSON response dictionary from the LLM API.
-
-        Returns:
-            The concatenated text content joined by newlines.
+        ``reasoning_content`` is intentionally ignored: only the visible
+        ``content`` field is returned.
         """
-        texts = []
+        try:
+            content = resp["choices"][0]["message"]["content"]
+        except (KeyError, IndexError, TypeError):
+            return ""
+        return str(content).strip() if content else ""
 
-        for item in resp.get("output", []):
-            if item.get("type") == "message":
-                for content in item.get("content", []):
-                    if content.get("type") == "output_text":
-                        texts.append(content.get("text"))
+    @staticmethod
+    def _parseChatCompletionsStream(line: str) -> Optional[str]:
+        """Parse a single SSE line from a chat/completions stream.
 
-        return "\n".join(texts)
-
-    def __parseTextStream(self, line: str) -> Optional[str]:
-        """Parse a single line from the streaming response.
-
-        Processes Server-Sent Events (SSE) format data lines and extracts
-        text deltas from the streaming LLM response.
-
-        Args:
-            line: A single line from the streaming response.
-
-        Returns:
-            The text delta if present, or None if the line doesn't contain
-            text content (e.g., metadata, completion signal, or invalid data).
+        Returns the text delta if present, otherwise ``None``. ``[DONE]``,
+        metadata, invalid JSON, and ``reasoning_content`` all yield ``None``.
         """
         line = line.strip()
-
         if not line.startswith("data:"):
             return None
 
         payload = line[5:].strip()
-
         if payload == "[DONE]":
             return None
 
         try:
             obj = jsonLoads(payload)
         except JSONDecodeError:
-            self.logger.error("Failed to parse JSON: " + payload)
+            return None
+
+        try:
+            delta = obj["choices"][0]["delta"].get("content")
+        except (KeyError, IndexError, TypeError):
+            return None
+
+        return delta if delta else None
+
+    @staticmethod
+    def _parseText(resp: dict) -> str:
+        """Parse the legacy Responses API response to extract text content."""
+        texts = []
+        for item in resp.get("output", []):
+            if item.get("type") == "message":
+                for content in item.get("content", []):
+                    if content.get("type") == "output_text":
+                        texts.append(content.get("text"))
+        return "\n".join(texts)
+
+    @staticmethod
+    def _parseTextStream(line: str) -> Optional[str]:
+        """Parse a single SSE line from a legacy Responses API stream."""
+        line = line.strip()
+        if not line.startswith("data:"):
+            return None
+
+        payload = line[5:].strip()
+        if payload == "[DONE]":
+            return None
+
+        try:
+            obj = jsonLoads(payload)
+        except JSONDecodeError:
             return None
 
         if obj.get("type") == "response.output_text.delta":
             return obj.get("delta")
-
         return None
 
-    async def askNeko(self, userName: str, request: str) -> str:
-        """Send an async request to the LLM and return the response.
+    # ------------------------------------------------------------------
+    # Public API
+    # ------------------------------------------------------------------
 
-        Makes an asynchronous HTTP POST request to the LLM API and waits
-        for the complete response.
+    async def askNeko(
+        self, userName: str, request: str, historyLimit: int = DEFAULT_HISTORY_LIMIT
+    ) -> str:
+        """Send an async request to the LLM and return the complete response.
 
         Args:
-            userName: The name of the user asking the question.
+            userName: The identity used to scope chat history lookup.
             request: The user's message to send to the LLM.
+            historyLimit: Number of recent messages injected as context.
 
         Returns:
             The complete text response from the LLM, or an empty string
             if the request fails.
-
-        Raises:
-            aiohttp.ClientError: If the HTTP request fails.
         """
         self.logger.info("Asking Neko...")
 
-        data = {
-            "model": self.nekomimiConfig["Model"],
-            "input": self.__generatePrompt(userName, request),
-        }
+        if self.apiProvider == "DeepSeek":
+            data = self._buildDeepSeekPayload(userName, request, historyLimit, stream=False)
+            parser = self._parseChatCompletions
+        else:
+            data = self._buildResponsesPayload(userName, request, historyLimit, stream=False)
+            parser = self._parseText
 
-        async with aioHttpClientSession() as session:
-            async with session.post(
-                self.postUrl, json=data, headers=self.postHeaders
-            ) as res:
+        async with aioHttpClientSession(timeout=self._timeout()) as session:
+            async with session.post(self.postUrl, json=data, headers=self.postHeaders) as res:
                 if res.status != 200:
                     body = await res.text()
                     self.logger.error(f"LLM API returned status {res.status}: {body}")
                     return ""
-                return self.__parseText(await res.json())
+                return parser(await res.json())
 
     async def askNekoStream(
-        self, userName: str, request: str
+        self, userName: str, request: str, historyLimit: int = DEFAULT_HISTORY_LIMIT
     ) -> AsyncGenerator[str, None]:
         """Send an async streaming request to the LLM.
 
-        Makes an asynchronous HTTP POST request with streaming enabled and
-        yields text deltas as they arrive.
+        Yields text deltas as they arrive.
 
         Args:
-            userName: The name of the user asking the question.
+            userName: The identity used to scope chat history lookup.
             request: The user's message to send to the LLM.
+            historyLimit: Number of recent messages injected as context.
 
         Yields:
             Text deltas as they are received from the streaming response.
-
-        Raises:
-            aiohttp.ClientError: If the HTTP request fails.
         """
         self.logger.info("Asking Neko with streaming response...")
 
-        data = {
-            "model": self.nekomimiConfig["Model"],
-            "input": self.__generatePrompt(userName, request),
-            "stream": True,
-        }
+        if self.apiProvider == "DeepSeek":
+            data = self._buildDeepSeekPayload(userName, request, historyLimit, stream=True)
+            parser = self._parseChatCompletionsStream
+        else:
+            data = self._buildResponsesPayload(userName, request, historyLimit, stream=True)
+            parser = self._parseTextStream
 
         try:
-            async with aioHttpClientSession() as session:
-                async with session.post(
-                    self.postUrl, json=data, headers=self.postHeaders
-                ) as resp:
+            async with aioHttpClientSession(timeout=self._timeout()) as session:
+                async with session.post(self.postUrl, json=data, headers=self.postHeaders) as resp:
                     if resp.status != 200:
                         body = await resp.text()
                         self.logger.error(
@@ -235,13 +326,12 @@ class Neko:
                         )
                         return
 
-                    async for raw_line in resp.content:
-                        line = raw_line.decode("utf-8").strip()
+                    async for rawLine in resp.content:
+                        line = rawLine.decode("utf-8").strip()
                         if not line:
                             continue
 
-                        delta = self.__parseTextStream(line)
-
+                        delta = parser(line)
                         if delta:
                             yield delta
         except Exception as e:
