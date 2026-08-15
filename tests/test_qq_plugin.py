@@ -17,6 +17,7 @@ def _install_ncatbot_stub() -> None:
     registrar = SimpleNamespace()
     registrar.qq = SimpleNamespace()
     registrar.qq.on_group_message = lambda *a, **k: (lambda f: f)
+    registrar.qq.on_private_message = lambda *a, **k: (lambda f: f)
 
     for name in (
         "ncatbot",
@@ -30,6 +31,7 @@ def _install_ncatbot_stub() -> None:
 
     sys.modules["ncatbot.core"].registrar = registrar
     sys.modules["ncatbot.event.qq"].GroupMessageEvent = object
+    sys.modules["ncatbot.event.qq"].PrivateMessageEvent = object
     sys.modules["ncatbot.plugin"].NcatBotPlugin = object
     sys.modules["ncatbot.utils"].get_config_manager = lambda: None
 

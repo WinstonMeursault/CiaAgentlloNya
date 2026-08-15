@@ -14,7 +14,7 @@ from typing import Dict, List, Optional
 import yaml
 
 from ncatbot.core import registrar
-from ncatbot.event.qq import GroupMessageEvent
+from ncatbot.event.qq import GroupMessageEvent, PrivateMessageEvent
 from ncatbot.plugin import NcatBotPlugin
 from ncatbot.utils import get_config_manager, get_log
 
@@ -32,7 +32,7 @@ else:
         "无法定位 core 包：请将 core/ 置于插件目录或容器根目录（见 qq/OPERATIONS.md）"
     )
 
-from core.neko import Neko  # noqa: E402
+from core.neko import Neko, PROMPT_MODE_WARM, PROMPT_MODE_COLD  # noqa: E402
 from core.chatHistory import ChatHistory  # noqa: E402
 
 
@@ -394,7 +394,11 @@ class AiChatPlugin(NcatBotPlugin):
 
         try:
             answer = await self._neko.askNeko(
-                user_key, prompt, historyLimit=history_limit, extraContext=group_context
+                user_key,
+                prompt,
+                historyLimit=history_limit,
+                extraContext=group_context,
+                mode=PROMPT_MODE_COLD,
             )
         except Exception:
             LOG.exception("%s: LLM 调用失败", self.name)
@@ -411,4 +415,69 @@ class AiChatPlugin(NcatBotPlugin):
 
         self._record_user_message(user_key, "bot", answer, group_id)
         self._record_group_message(group_id, self._bot_uin, "bot", answer)
+        await event.reply(answer)
+
+    @registrar.qq.on_private_message()
+    async def on_private_message(self, event: PrivateMessageEvent):
+        """处理私聊消息：无需 @，整条消息作为 prompt，warm 模式回复。"""
+        uin = str(event.user_id)
+
+        try:
+            text = summarize_message(event.message)
+            reply_id = extract_reply_id(event.message)
+        except Exception:
+            LOG.exception("%s: 私聊消息解析失败，已跳过", self.name)
+            return
+
+        nickname = extract_sender_name(getattr(event, "sender", None))
+
+        # 解析引用回复（若有）
+        quoted = ""
+        if reply_id and self._reply_context_enabled:
+            quoted = await self._resolve_reply_context(event, reply_id)
+
+        # 私聊不写群聊上下文，只写用户上下文（key = uin）
+        if text:
+            self._record_user_message(uin, "user", text, chatId=uin)
+
+        prompt = text
+        if quoted and prompt:
+            prompt = f"{quoted}\n{prompt}"
+        elif quoted:
+            prompt = quoted
+
+        if not prompt:
+            await event.reply("主人想说什么呢？本喵在听哦～")
+            return
+
+        if not self._consume_quota(uin):
+            await event.reply(
+                self._messages.get("quota_exceeded", "抱歉，今天的提问次数用完啦，明天再来吧～")
+            )
+            return
+
+        history_limit = (
+            self._history_limit_admin
+            if uin in self._admin_uins
+            else self._history_limit_normal
+        )
+
+        try:
+            answer = await self._neko.askNeko(
+                uin, prompt, historyLimit=history_limit, mode=PROMPT_MODE_WARM
+            )
+        except Exception:
+            LOG.exception("%s: 私聊 LLM 调用失败", self.name)
+            await event.reply(
+                self._messages.get("api_error", "呜……我刚刚遇到了一点问题，请稍后再试一次。")
+            )
+            return
+
+        if not answer:
+            await event.reply(
+                self._messages.get("api_error", "呜……我刚刚遇到了一点问题，请稍后再试一次。")
+            )
+            return
+
+        self._record_user_message(uin, "bot", answer, chatId=uin)
         await event.reply(answer)
