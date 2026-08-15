@@ -5,6 +5,7 @@
 ## 1. 运行环境与框架结构
 
 - 机器人跑在 Docker 容器 ncatbot（huanyp/ncatbot:latest）内：NapCat（QQ 客户端 + OneBot11 服务端，监听 3001）+ NcatBot5（框架，WS 连本地 3001）。
+- 仓库现有两个插件：`AI Chat/`（@问答，依赖 core）与 `Repeater/`（复读机，自包含不依赖 core）；两者的 `on_group_message` 由框架并行派发、互不影响。
 - ncatbot 包路径（容器内）：/root/ncatbot/.venv/lib/python3.12/site-packages/ncatbot/
 - 插件核心导入（已在 ai_chat 验证可用）：
   - from ncatbot.core import registrar

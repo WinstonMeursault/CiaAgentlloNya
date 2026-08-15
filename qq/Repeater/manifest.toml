@@ -1,0 +1,6 @@
+name = "repeater"
+version = "0.1.0"
+main = "plugin.py"
+entry_class = "RepeaterPlugin"
+author = "Meursault"
+description = "群聊复读机：连续两条相同文本消息时复读一次"

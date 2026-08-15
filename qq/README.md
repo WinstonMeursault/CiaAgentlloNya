@@ -11,14 +11,20 @@ qq/
 ├── requirements.txt          # Local reference deps (actually runs in the NcatBot image)
 ├── README.md / README_CN.md  # This doc
 ├── OPERATIONS.md             # Internal ops manual (gitignored, deployment details)
-└── AI Chat/                  # ai_chat plugin (the actual bot logic)
-    ├── manifest.toml         # Plugin manifest
+├── AI Chat/                  # ai_chat plugin (@ mention Q&A, the actual bot logic)
+│   ├── manifest.toml         # Plugin manifest
+│   ├── __init__.py
+│   ├── plugin.py             # Plugin logic (NcatBotPlugin → core/Neko + ChatHistory)
+│   ├── configExample.yaml    # QQ-side config template (copy to config.yaml)
+│   ├── prompts.yaml          # Guide text (persona lives in core)
+│   ├── messages.yaml         # Fixed reply texts
+│   └── README.md             # Plugin details
+└── Repeater/                 # repeater plugin (echo/repeat, self-contained, no core dep)
+    ├── manifest.toml
     ├── __init__.py
-    ├── plugin.py             # Plugin logic (NcatBotPlugin → core/Neko + ChatHistory)
-    ├── configExample.yaml    # QQ-side config template (copy to config.yaml)
-    ├── prompts.yaml          # Guide text (persona lives in core)
-    ├── messages.yaml         # Fixed reply texts
-    └── README.md             # Plugin details
+    ├── plugin.py             # Repeat logic (plain-text echo)
+    ├── configExample.yaml    # Config template (enabled master switch)
+    └── README.md
 ```
 
 ## Configuration
@@ -49,7 +55,7 @@ docker stop ncatbot
 docker restart ncatbot
 ```
 
-See `AI Chat/README.md` for plugin behavior details.
+See `AI Chat/README.md` and `Repeater/README.md` for plugin behavior details.
 
 ## Related
 

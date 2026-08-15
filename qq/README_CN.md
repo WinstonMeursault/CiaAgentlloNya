@@ -11,14 +11,20 @@ qq/
 ├── requirements.txt          # 本地参考依赖（实际运行于 NcatBot 镜像内）
 ├── README.md / README_CN.md  # 本文档
 ├── OPERATIONS.md             # 内部运维手册（gitignore，含部署细节）
-└── AI Chat/                  # ai_chat 插件（实际业务逻辑）
-    ├── manifest.toml         # 插件清单
+├── AI Chat/                  # ai_chat 插件（@问答，实际业务逻辑）
+│   ├── manifest.toml         # 插件清单
+│   ├── __init__.py
+│   ├── plugin.py             # 插件逻辑（NcatBotPlugin → core/Neko + ChatHistory）
+│   ├── configExample.yaml    # QQ 侧配置模板（复制为 config.yaml）
+│   ├── prompts.yaml          # 引导文案（人设在 core）
+│   ├── messages.yaml         # 固定回复文案
+│   └── README.md             # 插件详情
+└── Repeater/                 # repeater 插件（复读机，自包含不依赖 core）
+    ├── manifest.toml
     ├── __init__.py
-    ├── plugin.py             # 插件逻辑（NcatBotPlugin → core/Neko + ChatHistory）
-    ├── configExample.yaml    # QQ 侧配置模板（复制为 config.yaml）
-    ├── prompts.yaml          # 引导文案（人设在 core）
-    ├── messages.yaml         # 固定回复文案
-    └── README.md             # 插件详情
+    ├── plugin.py             # 复读逻辑（NcatBotPlugin，纯文本复读）
+    ├── configExample.yaml    # 配置模板（enabled 总开关）
+    └── README.md
 ```
 
 ## 配置
@@ -49,7 +55,7 @@ docker stop ncatbot
 docker restart ncatbot
 ```
 
-插件行为详见 `AI Chat/README.md`。
+插件行为详见 `AI Chat/README.md` 与 `Repeater/README.md`。
 
 ## 相关
 

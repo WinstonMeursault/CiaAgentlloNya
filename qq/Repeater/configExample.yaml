@@ -1,0 +1,4 @@
+# repeater 插件配置模板（复制为 config.yaml；config.yaml 已被 gitignore）
+
+# 复读机总开关（false 时插件完全静默）
+enabled: true
