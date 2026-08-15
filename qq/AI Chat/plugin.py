@@ -159,6 +159,9 @@ class AiChatPlugin(NcatBotPlugin):
         self._admin_uins: set[str] = {
             str(uin) for uin in self.get_config("admin_uins", [])
         }
+        self._unlimited_groups: set[str] = {
+            str(group_id) for group_id in self.get_config("unlimited_groups", [])
+        }
         self._prompts = self._load_extra_yaml("prompts.yaml")
         self._messages = self._load_extra_yaml("messages.yaml")
 
@@ -179,10 +182,11 @@ class AiChatPlugin(NcatBotPlugin):
         self._neko = Neko(self._chat_history)
 
         LOG.info(
-            "%s 已加载 (bot_uin=%s, admins=%s, 每日限额=%d, 上下文:普通%d/高权限%d, 群聊上下文=%d)",
+            "%s 已加载 (bot_uin=%s, admins=%s, 无限额群=%s, 每日限额=%d, 上下文:普通%d/高权限%d, 群聊上下文=%d)",
             self.name,
             self._bot_uin,
             sorted(self._admin_uins),
+            sorted(self._unlimited_groups),
             self._daily_limit,
             self._history_limit_normal,
             self._history_limit_admin,
@@ -215,9 +219,15 @@ class AiChatPlugin(NcatBotPlugin):
     def _today_str(tz) -> str:
         return datetime.now(tz).strftime("%Y-%m-%d")
 
-    def _consume_quota(self, uin: str) -> bool:
-        """高权限用户不限次；普通用户按天计数，超出返回 False。"""
+    def _consume_quota(self, uin: str, group_id: Optional[str] = None) -> bool:
+        """高权限用户与无限额群不限次；普通用户按天计数，超出返回 False。
+
+        无限额群（如测试群）内的问答直接放行且不写入计数，因此不会占用该
+        成员在其他群聊 / 私聊的每日额度。
+        """
         if uin in self._admin_uins:
+            return True
+        if group_id is not None and group_id in self._unlimited_groups:
             return True
         today = self._today_str(self._timezone)
         daily = self.data.setdefault("daily", {})
@@ -375,7 +385,7 @@ class AiChatPlugin(NcatBotPlugin):
             await event.reply(self._prompts.get("no_prompt", "请先 @我 再输入问题哦～"))
             return
 
-        if not self._consume_quota(uin):
+        if not self._consume_quota(uin, group_id):
             await event.reply(
                 self._messages.get("quota_exceeded", "抱歉，今天的提问次数用完啦，明天再来吧～")
             )

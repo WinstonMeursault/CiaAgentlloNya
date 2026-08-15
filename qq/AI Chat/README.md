@@ -15,12 +15,13 @@ LLM 后端已统一到共享 [`core/`](../../core/)（`Neko` + `ChatHistory`）�
 - 群聊上下文：额外缓存本群最近 `group_context_limit` 条完整群消息流，拼进人设 prompt 的 `{chatHistory}` 时，剔除当前用户自己的 @问答记录后再一并注入
 - 引用回复感知：@机器人 且带「引用回复」时，拉取被引用消息，把「被引用人 + 被引用内容」拼进 prompt；群聊上下文也记录引用关系（可经 `reply_context_enabled` 关闭）
 - 高权限用户组（`admin_uins`）不限次数
+- 无限额群（`unlimited_groups`）：该群内所有成员的问答均不记入额度，也不影响他们在其他群聊/私聊的额度计算
 - 普通用户每天（北京时间 UTC+8）最多 10 次，超出后回复固定道歉语
 
 ## 配置
 
 - LLM 后端（DeepSeek base_url / api_key / model / thinking / reasoning_effort / max_tokens / timeout / language）：**在 `core/config/config.yaml` 配置**，本插件不再包含密钥。
-- `config.yaml`：`admin_uins`（高权限组）、`rate_limit`（每日限额）、`context`（上下文条数，含 `group_context_limit` 群聊上下文条数、`reply_context_enabled` 引用回复开关、`max_history_rows`/`max_group_rows` 保留上限）、`chat_history.db_path`（可选，历史库路径）。首次使用复制 `configExample.yaml` 为 `config.yaml`（`config.yaml` 已被 gitignore，不入库）。
+- `config.yaml`：`admin_uins`（高权限组）、`unlimited_groups`（无限额群）、`rate_limit`（每日限额）、`context`（上下文条数，含 `group_context_limit` 群聊上下文条数、`reply_context_enabled` 引用回复开关、`max_history_rows`/`max_group_rows` 保留上限）、`chat_history.db_path`（可选，历史库路径）。首次使用复制 `configExample.yaml` 为 `config.yaml`（`config.yaml` 已被 gitignore，不入库）。
 - `prompts.yaml`：无输入引导语
 - `messages.yaml`：限额用尽、调用出错时的固定文案
 

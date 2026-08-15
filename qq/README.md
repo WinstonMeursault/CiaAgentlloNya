@@ -28,6 +28,7 @@ LLM backend settings (provider / base_url / api_key / model / thinking / reasoni
 Copy `AI Chat/configExample.yaml` to `AI Chat/config.yaml` and fill in the QQ-side values:
 
 - `admin_uins` — QQ numbers allowed unlimited calls (and a larger context window)
+- `unlimited_groups` — groups where all members' Q&A is free (doesn't count against their quota elsewhere)
 - `rate_limit.*` — per-user daily limit (Beijing time UTC+8)
 - `context.*` — context window size (normal vs admin, recent message count)
 - `chat_history.db_path` — optional SQLite path (defaults to the container `data/ai_chat/` dir)

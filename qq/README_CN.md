@@ -28,6 +28,7 @@ LLM 后端（provider / base_url / api_key / model / thinking / reasoning_effort
 将 `AI Chat/configExample.yaml` 复制为 `AI Chat/config.yaml` 并填入 QQ 侧的值：
 
 - `admin_uins` — 可无限次调用（且使用更大上下文窗口）的 QQ 号
+- `unlimited_groups` — 无限额群：群内所有成员的问答均不记入额度（不影响其他群/私聊额度）
 - `rate_limit.*` — 普通用户每日限额（北京时间 UTC+8）
 - `context.*` — 上下文窗口大小（普通 / 高权限，按最近消息条数）
 - `chat_history.db_path` — 可选 SQLite 路径（默认落到容器 `data/ai_chat/` 目录）
