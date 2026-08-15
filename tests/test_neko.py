@@ -104,3 +104,42 @@ class TestExtraContext:
         payload = neko._buildDeepSeekPayload("g1:u1", "你好", historyLimit=7, stream=False)
         system = payload["messages"][0]["content"]
         assert "GROUP_CONTEXT_MARKER" not in system
+
+
+class TestSystemPromptAssembly:
+    """拆分后：系统 prompt 按固定顺序组装，占位符被正确替换。"""
+
+    def test_sections_assembled_in_order(self, tmp_path: Path):
+        neko = Neko(_DummyHistory(), configPath=_make_config(tmp_path))
+        system = neko._generateSystemPrompt("g1:u1", historyLimit=7)
+        markers = [
+            "【身份锚定", "【人格矩阵", "【语言协议",
+            "【行为协议", "【人设防火墙", "【记忆与连续性",
+        ]
+        positions = [system.index(marker) for marker in markers]
+        assert positions == sorted(positions)
+        assert "【输出质量检查清单" in system
+        assert "【背景信息】" in system
+
+    def test_placeholders_replaced(self, tmp_path: Path):
+        neko = Neko(_DummyHistory(), configPath=_make_config(tmp_path))
+        system = neko._generateSystemPrompt("g1:u1", historyLimit=7)
+        assert "{chatHistory}" not in system
+        assert "{time}" not in system
+
+    def test_warm_is_default_mode(self, tmp_path: Path):
+        neko = Neko(_DummyHistory(), configPath=_make_config(tmp_path))
+        system = neko._generateSystemPrompt("g1:u1", historyLimit=7)
+        assert "热情模式" in system
+        assert "高冷模式" not in system
+
+    def test_cold_mode_uses_cold_sections(self, tmp_path: Path):
+        neko = Neko(_DummyHistory(), configPath=_make_config(tmp_path))
+        system = neko._generateSystemPrompt("g1:u1", historyLimit=7, mode="cold")
+        assert "高冷模式" in system
+        assert "热情模式" not in system
+
+    def test_user_prompt_follows_mode(self, tmp_path: Path):
+        neko = Neko(_DummyHistory(), configPath=_make_config(tmp_path))
+        assert "主人说" in neko._generateUserPrompt("x", mode="warm")
+        assert "对方说" in neko._generateUserPrompt("x", mode="cold")

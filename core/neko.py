@@ -31,6 +31,28 @@ currentDir = osPath.dirname(osPath.realpath(__file__))
 #: Default number of recent messages used as conversation context.
 DEFAULT_HISTORY_LIMIT = 20
 
+#: Prompt mode: the warm persona shown to the Master.
+PROMPT_MODE_WARM = "warm"
+#: Prompt mode: the cold persona shown to strangers.
+PROMPT_MODE_COLD = "cold"
+
+#: Ordered prompt sections composing the system prompt (see prompt_*.yaml).
+#: Sections in ``MODED_SECTIONS`` exist as ``*_warm`` / ``*_cold`` keys;
+#: shared sections (e.g. ``identity``, ``context``) use their bare name.
+PROMPT_SECTION_ORDER = (
+    "identity",
+    "personality",
+    "language_protocol",
+    "behavior_protocol",
+    "constraints",
+    "context",
+)
+
+#: Sections that have warm/cold variants in the prompt YAML.
+MODED_SECTIONS = frozenset(
+    {"personality", "language_protocol", "behavior_protocol", "constraints"}
+)
+
 
 class Neko:
     """Nekomimi LLM API client for chat interactions.
@@ -42,7 +64,10 @@ class Neko:
     Attributes:
         chatHistory: Reference to the chat history storage instance.
         llmConfig: Configuration settings loaded from config.yaml ``llm`` section.
-        nekomimiPrompt: Prompt templates loaded from the language-specific YAML file.
+        nekomimiPrompt: Sectioned prompt templates loaded from the language-specific
+            YAML file. Sections are keyed as *_warm (for Master) / *_cold (for
+            strangers): identity, personality, language_protocol, behavior_protocol,
+            constraints, plus shared context and askNeko.
         apiProvider: Provider name deciding which request/response format to use.
         postUrl: API endpoint URL for the configured provider.
         postHeaders: HTTP headers including authorization token.
@@ -119,11 +144,47 @@ class Neko:
         """Build the aiohttp timeout from the configured ``timeout_seconds``."""
         return aioHttpClientTimeout(total=int(self.llmConfig.get("timeout_seconds", 60)))
 
+    @staticmethod
+    def _sectionKey(section: str, mode: str) -> str:
+        """Return the YAML key for a section under the given mode.
+
+        Mode-scoped sections (``MODED_SECTIONS``) become ``<section>_<mode>``;
+        shared sections keep their bare name.
+        """
+        if section in MODED_SECTIONS:
+            return f"{section}_{mode}"
+        return section
+
+    def _assembleSystemPrompt(self, mode: str = PROMPT_MODE_WARM) -> str:
+        """Concatenate prompt sections in ``PROMPT_SECTION_ORDER`` for a mode.
+
+        Missing or empty sections are skipped (with a warning) so a section
+        can be disabled by removing its key from the prompt YAML.
+
+        Args:
+            mode: ``PROMPT_MODE_WARM`` or ``PROMPT_MODE_COLD``.
+
+        Returns:
+            The assembled, unfilled system prompt string.
+        """
+        sections: list[str] = []
+        for section in PROMPT_SECTION_ORDER:
+            key = self._sectionKey(section, mode)
+            text = self.nekomimiPrompt.get(key)
+            if not text:
+                self.logger.warning(
+                    f"Prompt section '{key}' is missing or empty; skipped."
+                )
+                continue
+            sections.append(str(text).strip())
+        return "\n\n".join(sections)
+
     def _generateSystemPrompt(
         self,
         userName: str,
         historyLimit: int,
         extraContext: Optional[str] = None,
+        mode: str = PROMPT_MODE_WARM,
     ) -> str:
         """Generate the persona/system prompt with context and current time.
 
@@ -132,28 +193,31 @@ class Neko:
             historyLimit: Number of recent messages to inject as context.
             extraContext: Optional pre-formatted text appended after the user
                 history inside {chatHistory} (e.g. group chat context).
+            mode: ``PROMPT_MODE_WARM`` or ``PROMPT_MODE_COLD``.
 
         Returns:
-            The filled ``setNeko`` prompt string.
+            The assembled prompt string with ``{chatHistory}`` and ``{time}``
+            placeholders filled.
         """
         history = str(self.chatHistory.getRecentMessages(userName, historyLimit))
         if extraContext:
             history = f"{history}\n\n{extraContext}"
-        setNekoPrompt = self.nekomimiPrompt["setNeko"]
+        setNekoPrompt = self._assembleSystemPrompt(mode)
         setNekoPrompt = setNekoPrompt.replace("{chatHistory}", history)
         setNekoPrompt = setNekoPrompt.replace("{time}", asctime(localtime(time())))
         return setNekoPrompt
 
-    def _generateUserPrompt(self, request: str) -> str:
+    def _generateUserPrompt(self, request: str, mode: str = PROMPT_MODE_WARM) -> str:
         """Generate the user message prompt from the incoming request.
 
         Args:
             request: The user's message to respond to.
+            mode: ``PROMPT_MODE_WARM`` or ``PROMPT_MODE_COLD``.
 
         Returns:
-            The ``askNeko`` template concatenated with the request.
+            The ``askNeko_<mode>`` template concatenated with the request.
         """
-        return self.nekomimiPrompt["askNeko"] + request
+        return self.nekomimiPrompt[f"askNeko_{mode}"] + request
 
     def _buildDeepSeekPayload(
         self,
@@ -162,6 +226,7 @@ class Neko:
         historyLimit: int,
         stream: bool,
         extraContext: Optional[str] = None,
+        mode: str = PROMPT_MODE_WARM,
     ) -> dict:
         """Build the OpenAI-compatible chat/completions payload for DeepSeek."""
         payload = {
@@ -169,9 +234,9 @@ class Neko:
             "messages": [
                 {
                     "role": "system",
-                    "content": self._generateSystemPrompt(userName, historyLimit, extraContext),
+                    "content": self._generateSystemPrompt(userName, historyLimit, extraContext, mode),
                 },
-                {"role": "user", "content": self._generateUserPrompt(request)},
+                {"role": "user", "content": self._generateUserPrompt(request, mode)},
             ],
             "stream": stream,
             "max_tokens": int(self.llmConfig.get("max_tokens", 1024)),
@@ -190,9 +255,10 @@ class Neko:
         historyLimit: int,
         stream: bool,
         extraContext: Optional[str] = None,
+        mode: str = PROMPT_MODE_WARM,
     ) -> dict:
         """Build the legacy Responses API payload (single-string ``input``)."""
-        prompt = self._generateSystemPrompt(userName, historyLimit, extraContext) + self._generateUserPrompt(request)
+        prompt = self._generateSystemPrompt(userName, historyLimit, extraContext, mode) + self._generateUserPrompt(request, mode)
         return {
             "model": self.llmConfig["model"],
             "input": prompt,
@@ -284,6 +350,7 @@ class Neko:
         request: str,
         historyLimit: int = DEFAULT_HISTORY_LIMIT,
         extraContext: Optional[str] = None,
+        mode: str = PROMPT_MODE_WARM,
     ) -> str:
         """Send an async request to the LLM and return the complete response.
 
@@ -291,6 +358,9 @@ class Neko:
             userName: The identity used to scope chat history lookup.
             request: The user's message to send to the LLM.
             historyLimit: Number of recent messages injected as context.
+            extraContext: Optional pre-formatted text appended after the user
+                history inside {chatHistory} (e.g. group chat context).
+            mode: ``PROMPT_MODE_WARM`` or ``PROMPT_MODE_COLD``.
 
         Returns:
             The complete text response from the LLM, or an empty string
@@ -299,10 +369,10 @@ class Neko:
         self.logger.info("Asking Neko...")
 
         if self.apiProvider == "DeepSeek":
-            data = self._buildDeepSeekPayload(userName, request, historyLimit, stream=False, extraContext=extraContext)
+            data = self._buildDeepSeekPayload(userName, request, historyLimit, stream=False, extraContext=extraContext, mode=mode)
             parser = self._parseChatCompletions
         else:
-            data = self._buildResponsesPayload(userName, request, historyLimit, stream=False, extraContext=extraContext)
+            data = self._buildResponsesPayload(userName, request, historyLimit, stream=False, extraContext=extraContext, mode=mode)
             parser = self._parseText
 
         async with aioHttpClientSession(timeout=self._timeout()) as session:
@@ -319,6 +389,7 @@ class Neko:
         request: str,
         historyLimit: int = DEFAULT_HISTORY_LIMIT,
         extraContext: Optional[str] = None,
+        mode: str = PROMPT_MODE_WARM,
     ) -> AsyncGenerator[str, None]:
         """Send an async streaming request to the LLM.
 
@@ -328,6 +399,9 @@ class Neko:
             userName: The identity used to scope chat history lookup.
             request: The user's message to send to the LLM.
             historyLimit: Number of recent messages injected as context.
+            extraContext: Optional pre-formatted text appended after the user
+                history inside {chatHistory} (e.g. group chat context).
+            mode: ``PROMPT_MODE_WARM`` or ``PROMPT_MODE_COLD``.
 
         Yields:
             Text deltas as they are received from the streaming response.
@@ -335,10 +409,10 @@ class Neko:
         self.logger.info("Asking Neko with streaming response...")
 
         if self.apiProvider == "DeepSeek":
-            data = self._buildDeepSeekPayload(userName, request, historyLimit, stream=True, extraContext=extraContext)
+            data = self._buildDeepSeekPayload(userName, request, historyLimit, stream=True, extraContext=extraContext, mode=mode)
             parser = self._parseChatCompletionsStream
         else:
-            data = self._buildResponsesPayload(userName, request, historyLimit, stream=True, extraContext=extraContext)
+            data = self._buildResponsesPayload(userName, request, historyLimit, stream=True, extraContext=extraContext, mode=mode)
             parser = self._parseTextStream
 
         try:
