@@ -1,11 +1,11 @@
-"""群聊复读机插件：连续两条相同文本消息时，机器人立刻复读一次。
+"""群聊复读机插件：相同文本消息（相隔不超过 2 条）时，机器人立刻复读一次。
 
 自包含插件，不依赖共享 core 包；仅处理群聊消息事件。
 """
 
 from __future__ import annotations
 
-from typing import Dict
+from typing import Any, Dict
 
 from ncatbot.core import registrar
 from ncatbot.event.qq import GroupMessageEvent
@@ -47,43 +47,49 @@ def extract_text_from_event(message) -> str:
     return "".join(parts).strip()
 
 
-def step_repeat(state: Dict[str, str], text: str) -> bool:
+def step_repeat(state: Dict[str, Any], text: str) -> bool:
     """复读机状态转移：判断本次是否应复读，并就地更新 state。
 
     Args:
-        state: 形如 {"last": 上一条文本, "repeated": 本段已复读的文本} 的字典。
+        state: 形如 {"recent": 最近至多 3 条文本, "repeated": 本段已复读的文本} 的字典。
         text: 当前消息的纯文本（已去首尾空白）。
 
     Returns:
         是否应立即复读该文本。
     """
+    recent = state["recent"]
     if not text:
-        # 非文本消息打断「连续」
-        state["last"] = ""
+        # 非文本消息打断「连续」：清空窗口与本段标记
+        recent.clear()
         state["repeated"] = ""
         return False
-    if text == state["last"] and text != state["repeated"]:
-        # 连续两条相同且本段尚未复读：先标记，保证每段只复读一次
+
+    matched = text in recent
+    if matched and text != state["repeated"]:
+        # 窗口内出现相同文本且本段尚未复读：先标记，保证每段只复读一次
         state["repeated"] = text
-        state["last"] = text
-        return True
-    if text != state["last"]:
-        # 内容变化 → 重置本段
-        state["repeated"] = ""
-    state["last"] = text
-    return False
+        should_repeat = True
+    else:
+        should_repeat = False
+        if not matched:
+            # 内容变化（或相隔超过 2 条）→ 重置本段
+            state["repeated"] = ""
+    recent.append(text)
+    if len(recent) > 3:
+        recent.pop(0)
+    return should_repeat
 
 
 class RepeaterPlugin(NcatBotPlugin):
     name = "repeater"
     version = "0.1.0"
     author = "Meursault"
-    description = "群聊复读机：连续两条相同文本消息时复读一次"
+    description = "群聊复读机：相同文本消息（相隔不超过 2 条）时复读一次"
 
     async def on_load(self):
         self._bot_uin = str(get_config_manager().config.bot_uin)
         self._enabled = bool(self.get_config("enabled", True))
-        self._state: Dict[str, Dict[str, str]] = {}  # group_id -> state
+        self._state: Dict[str, Any] = {}  # group_id -> state
         LOG.info("%s 已加载 (enabled=%s)", self.name, self._enabled)
 
     @registrar.qq.on_group_message()
@@ -99,7 +105,7 @@ class RepeaterPlugin(NcatBotPlugin):
             LOG.exception("%s: 消息解析失败，已跳过", self.name)
             return
 
-        state = self._state.setdefault(group_id, {"last": "", "repeated": ""})
+        state = self._state.setdefault(group_id, {"recent": [], "repeated": ""})
         if not step_repeat(state, text):
             return
         try:

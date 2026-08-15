@@ -61,42 +61,67 @@ def _obj(seg_type: str, **kwargs):
 
 class TestStepRepeat:
     def _state(self):
-        return {"last": "", "repeated": ""}
+        return {"recent": [], "repeated": ""}
 
     def test_first_message_no_repeat(self):
         state = self._state()
         assert step_repeat(state, "哈哈") is False
-        assert state == {"last": "哈哈", "repeated": ""}
+        assert state == {"recent": ["哈哈"], "repeated": ""}
 
-    def test_two_identical_repeat(self):
-        state = {"last": "哈哈", "repeated": ""}
+    def test_consecutive_aa(self):
+        state = self._state()
+        step_repeat(state, "哈哈")
         assert step_repeat(state, "哈哈") is True
-        assert state == {"last": "哈哈", "repeated": "哈哈"}
 
-    def test_third_identical_no_repeat(self):
-        state = {"last": "哈哈", "repeated": "哈哈"}
+    def test_gap_one_aba(self):
+        state = self._state()
+        step_repeat(state, "哈哈")
+        step_repeat(state, "喵")
+        assert step_repeat(state, "哈哈") is True
+
+    def test_gap_two_abca(self):
+        state = self._state()
+        step_repeat(state, "哈哈")
+        step_repeat(state, "喵")
+        step_repeat(state, "汪")
+        assert step_repeat(state, "哈哈") is True
+
+    def test_gap_three_no_repeat(self):
+        state = self._state()
+        step_repeat(state, "哈哈")
+        step_repeat(state, "喵")
+        step_repeat(state, "汪")
+        step_repeat(state, "咕")
         assert step_repeat(state, "哈哈") is False
-        assert state == {"last": "哈哈", "repeated": "哈哈"}
 
-    def test_different_resets_run(self):
-        state = {"last": "哈哈", "repeated": "哈哈"}
-        assert step_repeat(state, "喵") is False
-        assert state == {"last": "喵", "repeated": ""}
+    def test_only_repeat_once_per_run(self):
+        state = self._state()
+        assert step_repeat(state, "哈哈") is False
+        assert step_repeat(state, "哈哈") is True
+        assert step_repeat(state, "哈哈") is False
+        assert step_repeat(state, "哈哈") is False
 
-    def test_repeat_again_after_change(self):
-        state = {"last": "喵", "repeated": ""}
-        assert step_repeat(state, "喵") is True
-        assert state == {"last": "喵", "repeated": "喵"}
-
-    def test_empty_text_resets(self):
-        state = {"last": "哈哈", "repeated": "哈哈"}
+    def test_empty_text_resets_window(self):
+        state = {"recent": ["喵", "汪", "哈哈"], "repeated": "哈哈"}
         assert step_repeat(state, "") is False
-        assert state == {"last": "", "repeated": ""}
+        assert state == {"recent": [], "repeated": ""}
 
     def test_same_user_twice_counts(self):
-        # 同一人连发两条相同内容也算复读（用户确认的行为）
-        state = {"last": "哈哈", "repeated": ""}
+        # 同一人连发相同内容也算复读（用户确认的行为）
+        state = self._state()
+        step_repeat(state, "哈哈")
         assert step_repeat(state, "哈哈") is True
+
+    def test_reepeat_after_long_gap(self):
+        # 内容变化且相隔超过窗口后，新的一段相同文本可再次复读
+        state = self._state()
+        step_repeat(state, "哈哈")  # 1
+        step_repeat(state, "哈哈")  # 2 -> 复读，repeated=哈哈
+        step_repeat(state, "喵")    # 3
+        step_repeat(state, "汪")    # 4
+        step_repeat(state, "咕")    # 5
+        assert step_repeat(state, "哈哈") is False  # 6 -> 哈哈 已离开窗口
+        assert step_repeat(state, "哈哈") is True   # 7 -> 新的一段
 
 
 class TestExtractTextFromEvent:
@@ -142,10 +167,13 @@ class TestOnGroupMessage:
             api=SimpleNamespace(messaging=SimpleNamespace(send_group_msg=send_group_msg)),
         )
 
+    def _text(self, text):
+        return [{"type": "text", "data": {"text": text}}]
+
     def test_two_identical_sends_once(self):
         plugin = self._make_plugin()
         sent = []
-        text = [{"type": "text", "data": {"text": "哈哈"}}]
+        text = self._text("哈哈")
         asyncio.run(plugin.on_group_message(self._make_event("g1", "1", text, sent)))
         asyncio.run(plugin.on_group_message(self._make_event("g1", "2", text, sent)))
         assert sent == [{"group_id": "g1", "text": "哈哈"}]
@@ -153,17 +181,44 @@ class TestOnGroupMessage:
     def test_three_identical_sends_once(self):
         plugin = self._make_plugin()
         sent = []
-        text = [{"type": "text", "data": {"text": "哈哈"}}]
+        text = self._text("哈哈")
         asyncio.run(plugin.on_group_message(self._make_event("g1", "1", text, sent)))
         asyncio.run(plugin.on_group_message(self._make_event("g1", "2", text, sent)))
         asyncio.run(plugin.on_group_message(self._make_event("g1", "3", text, sent)))
         assert len(sent) == 1
 
+    def test_gap_one_triggers(self):
+        plugin = self._make_plugin()
+        sent = []
+        asyncio.run(plugin.on_group_message(self._make_event("g1", "1", self._text("哈哈"), sent)))
+        asyncio.run(plugin.on_group_message(self._make_event("g1", "2", self._text("喵"), sent)))
+        asyncio.run(plugin.on_group_message(self._make_event("g1", "3", self._text("哈哈"), sent)))
+        assert sent == [{"group_id": "g1", "text": "哈哈"}]
+
+    def test_gap_two_triggers(self):
+        plugin = self._make_plugin()
+        sent = []
+        asyncio.run(plugin.on_group_message(self._make_event("g1", "1", self._text("哈哈"), sent)))
+        asyncio.run(plugin.on_group_message(self._make_event("g1", "2", self._text("喵"), sent)))
+        asyncio.run(plugin.on_group_message(self._make_event("g1", "3", self._text("汪"), sent)))
+        asyncio.run(plugin.on_group_message(self._make_event("g1", "4", self._text("哈哈"), sent)))
+        assert sent == [{"group_id": "g1", "text": "哈哈"}]
+
+    def test_gap_three_no_trigger(self):
+        plugin = self._make_plugin()
+        sent = []
+        asyncio.run(plugin.on_group_message(self._make_event("g1", "1", self._text("哈哈"), sent)))
+        asyncio.run(plugin.on_group_message(self._make_event("g1", "2", self._text("喵"), sent)))
+        asyncio.run(plugin.on_group_message(self._make_event("g1", "3", self._text("汪"), sent)))
+        asyncio.run(plugin.on_group_message(self._make_event("g1", "4", self._text("咕"), sent)))
+        asyncio.run(plugin.on_group_message(self._make_event("g1", "5", self._text("哈哈"), sent)))
+        assert sent == []
+
     def test_change_then_repeat_again(self):
         plugin = self._make_plugin()
         sent = []
-        a = [{"type": "text", "data": {"text": "哈哈"}}]
-        b = [{"type": "text", "data": {"text": "喵"}}]
+        a = self._text("哈哈")
+        b = self._text("喵")
         asyncio.run(plugin.on_group_message(self._make_event("g1", "1", a, sent)))
         asyncio.run(plugin.on_group_message(self._make_event("g1", "2", a, sent)))
         asyncio.run(plugin.on_group_message(self._make_event("g1", "3", b, sent)))
@@ -173,7 +228,7 @@ class TestOnGroupMessage:
     def test_same_user_twice(self):
         plugin = self._make_plugin()
         sent = []
-        text = [{"type": "text", "data": {"text": "哈哈"}}]
+        text = self._text("哈哈")
         asyncio.run(plugin.on_group_message(self._make_event("g1", "1", text, sent)))
         asyncio.run(plugin.on_group_message(self._make_event("g1", "1", text, sent)))
         assert sent == [{"group_id": "g1", "text": "哈哈"}]
@@ -182,7 +237,7 @@ class TestOnGroupMessage:
         plugin = self._make_plugin()
         plugin._enabled = False
         sent = []
-        text = [{"type": "text", "data": {"text": "哈哈"}}]
+        text = self._text("哈哈")
         asyncio.run(plugin.on_group_message(self._make_event("g1", "1", text, sent)))
         asyncio.run(plugin.on_group_message(self._make_event("g1", "2", text, sent)))
         assert sent == []
@@ -190,7 +245,7 @@ class TestOnGroupMessage:
     def test_bot_self_ignored(self):
         plugin = self._make_plugin()
         sent = []
-        text = [{"type": "text", "data": {"text": "哈哈"}}]
+        text = self._text("哈哈")
         asyncio.run(plugin.on_group_message(self._make_event("g1", "1", text, sent)))
         asyncio.run(plugin.on_group_message(self._make_event("g1", "123456", text, sent)))
         assert sent == []
@@ -198,7 +253,7 @@ class TestOnGroupMessage:
     def test_non_text_resets(self):
         plugin = self._make_plugin()
         sent = []
-        a = [{"type": "text", "data": {"text": "哈哈"}}]
+        a = self._text("哈哈")
         img = [{"type": "image", "data": {"url": "x"}}]
         asyncio.run(plugin.on_group_message(self._make_event("g1", "1", a, sent)))
         asyncio.run(plugin.on_group_message(self._make_event("g1", "2", img, sent)))
@@ -208,7 +263,7 @@ class TestOnGroupMessage:
     def test_per_group_isolation(self):
         plugin = self._make_plugin()
         sent = []
-        text = [{"type": "text", "data": {"text": "哈哈"}}]
+        text = self._text("哈哈")
         asyncio.run(plugin.on_group_message(self._make_event("g1", "1", text, sent)))
         asyncio.run(plugin.on_group_message(self._make_event("g2", "1", text, sent)))
         assert sent == []
