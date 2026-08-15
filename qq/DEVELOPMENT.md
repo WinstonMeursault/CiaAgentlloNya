@@ -67,7 +67,7 @@
 
 1. no_prompt 死代码：extract_prompt_from_event 用 return prompt or None，空文本返回 None，导致「只 @ 不说话」被当成「未 @」；on_group_message 里的 if not prompt 分支永远不会触发。要区分两者需改该函数返回契约（如返回 (at_bot, text) 二元组）。
 2. 引用回复只解析一层、只取文本（多层嵌套不递归、图片/表情忽略）。
-3. 私聊（on_private_message）未实现，插件只注册了 on_group_message。
+3. 私聊已实现：`@registrar.qq.on_private_message()` + `PrivateMessageEvent`（无 `group_id`，用 `event.user_id` 作上下文 key；`event.reply()` 对私聊自动不 @，内部走 `post_private_array_msg`）。模式接线：私聊 `PROMPT_MODE_WARM`、群聊 `PROMPT_MODE_COLD`。
 4. history_limit 是「消息条数」不是「问答对数」；闲聊占窗后建议调大 normal（如 20~30）。
 5. 时间戳默认 datetime.now(utc)（微秒精度）；测试里需要稳定顺序时显式传 timestamp，避免同微秒乱序。
 6. 群聊上下文去重对「bot 给不同人发相同回复」仍有极小概率误删（bot 回复按文本匹配）。

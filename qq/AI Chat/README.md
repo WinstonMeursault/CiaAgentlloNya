@@ -1,12 +1,14 @@
 # ai_chat 插件
 
-群内 @离岛酱 触发「月羽雪乃」nekomimi 问答。
+群内 @离岛酱 触发「月羽雪乃」nekomimi 问答，支持私聊。
 
 LLM 后端已统一到共享 [`core/`](../../core/)（`Neko` + `ChatHistory`），与 Telegram 共用同一套 **DeepSeek chat/completions** 后端与**月羽雪乃**人设。
 
 ## 功能
 
-- 群消息中 `@机器人` 时，将 @ 之外的完整文本作为 prompt，经 `core.neko.Neko` 调用 DeepSeek 回复
+- **双模式人设**：私聊走 `warm`（对主人的热情模式）、群聊一律走 `cold`（对陌生人害羞强装的高冷模式），由 `core/config/prompt_*.yaml` 的 `*_warm`/`*_cold` 分块驱动
+- 群消息中 `@机器人` 时，将 @ 之外的完整文本作为 prompt，经 `core.neko.Neko` 调用 DeepSeek 回复（cold 模式）
+- 私聊消息整条作为 prompt 直接回复（无需 @，warm 模式），同样计入每日限额与持久上下文
 - 回复使用「月羽雪乃」猫娘人设（`core/config/prompt_CN/EN.yaml`，语言由 `core/config/config.yaml` 的 `llm.language` 决定）
 - 持久上下文：按「群 + 用户」隔离，普通用户取最近 10 条、高权限组取最近 50 条消息作为上下文（存 SQLite）
 - 用户维度记忆：每条群消息都记入对应用户的上下文（含一般闲聊、@问答与机器人回复），bot 能记得每个用户说过什么
