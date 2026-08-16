@@ -88,8 +88,8 @@ python telegram/bot.py
 
 - [x] Telegram Bot
 - [x] QQ Bot
-- [ ] 联网搜索（规划中）— 见 `docs/search-rag-design.md`
-- [ ] RAG 语义检索（规划中）— 见 `docs/search-rag-design.md`
+- [x] 联网搜索（可选，两段式判需 + SearXNG）— 见 `docs/search-rag-design.md`
+- [x] RAG 语义检索（可选，fastembed + chromadb）— 见 `docs/search-rag-design.md`
 
 ## 许可证
 

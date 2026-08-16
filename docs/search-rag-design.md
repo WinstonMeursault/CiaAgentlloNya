@@ -1,6 +1,6 @@
 # core 模块增强设计：联网搜索与 RAG 知识库检索
 
-> 状态：设计文档（**未实现**） · 范围：只做可行性论证与架构设计，不改代码、不加依赖。
+> 状态：**已实现**（Phase 1 RAG + Phase 2 联网搜索，均 opt-in、默认关闭） · 本文为设计与实现依据。
 
 ## 1. 背景与结论
 
@@ -247,6 +247,8 @@ flowchart LR
 | Phase 2 | 联网搜索（两段式）：`search.py` + `_judgeNeedsSearch` + `{searchResults}` 注入 | 供应商已定（SearXNG 公用实例） |
 | Phase 3 | 混合检索（向量 + FTS5 关键词），可选 Agentic 工具化 | Phase 1/2 |
 
+> Phase 1、Phase 2 已实现并落地（core/knowledge.py、core/search.py、core/enhancer.py、core/neko.py 的占位符注入与两段式判需）；Phase 3 混合检索仍为规划。
+
 ## 9. 决策清单（已全部敲定）
 
 | # | 问题 | 候选 | 结论 | 影响 |
@@ -256,4 +258,4 @@ flowchart LR
 | 3 | embedding 来源 | ~~待决~~ 已定：本地 fastembed（BGE） | fastembed | 离线、无 key、CPU |
 | 4 | 向量库 | ~~待决~~ 已定：chromadb | chromadb | 嵌入式持久化 |
 
-> 四项决策均已定（两段式判需 / SearXNG 公用实例 / fastembed / chromadb），可按第 5–7 节草案直接进入 Phase 1 实现。
+> 四项决策均已定（两段式判需 / SearXNG 公用实例 / fastembed / chromadb），Phase 1（RAG）与 Phase 2（联网搜索）已按本设计实现。
