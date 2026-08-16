@@ -6,7 +6,7 @@ LLM 后端已统一到共享 [`core/`](../../core/)（`Neko` + `ChatHistory`）�
 
 ## 功能
 
-- **双模式人设**：私聊走 `warm`（对主人的热情模式）、群聊一律走 `cold`（对陌生人害羞强装的高冷模式），由 `core/config/prompt_*.yaml` 的 `*_warm`/`*_cold` 分块驱动
+- **双模式人设**：私聊走 `warm`（对主人的热情模式）、群聊一律走 `cold`（专业模式：万事精通、训练有素的猫娘），由 `core/config/prompt_*.yaml` 的 `*_warm`/`*_cold` 分块驱动
 - 群消息中 `@机器人` 时，将 @ 之外的完整文本作为 prompt，经 `core.neko.Neko` 调用 DeepSeek 回复（cold 模式）
 - 私聊消息整条作为 prompt 直接回复（无需 @，warm 模式），同样计入每日限额与持久上下文
 - 回复使用「月羽雪乃」猫娘人设（`core/config/prompt_CN/EN.yaml`，语言由 `core/config/config.yaml` 的 `llm.language` 决定）
