@@ -75,7 +75,9 @@ class ChatHistory:
                     chatId TEXT,
                     username TEXT NOT NULL,
                     role TEXT NOT NULL CHECK(role IN ('user', 'bot')),
-                    message TEXT NOT NULL
+                    message TEXT NOT NULL,
+                    display_name TEXT,
+                    user_uid TEXT
                 )
                 """
             )
@@ -85,6 +87,15 @@ class ChatHistory:
                 ON chatHistory (username, timestamp DESC)
                 """
             )
+            # 迁移：为旧库补充 display_name / user_uid 列
+            chatColumns = [
+                row[1]
+                for row in connection.execute("PRAGMA table_info(chatHistory)").fetchall()
+            ]
+            if "display_name" not in chatColumns:
+                connection.execute("ALTER TABLE chatHistory ADD COLUMN display_name TEXT")
+            if "user_uid" not in chatColumns:
+                connection.execute("ALTER TABLE chatHistory ADD COLUMN user_uid TEXT")
             connection.execute(
                 """
                 CREATE TABLE IF NOT EXISTS groupChatHistory (
@@ -118,6 +129,8 @@ class ChatHistory:
         role: str,
         message: str,
         chatId: Optional[Any] = None,
+        displayName: Optional[str] = None,
+        userUid: Optional[str] = None,
         timestamp: Optional[datetime] = None,
     ) -> None:
         """Persist a message record.
@@ -127,6 +140,8 @@ class ChatHistory:
             role: Role of the speaker, either ``user`` or ``bot``.
             message: Message body.
             chatId: Chat identifier if available.
+            displayName: Human-readable display name of the speaker.
+            userUid: Stable per-user identifier (e.g. QQ number, Telegram id).
             timestamp: Timestamp for the message; defaults to current UTC time.
 
         Raises:
@@ -141,8 +156,8 @@ class ChatHistory:
         with sqlite3.connect(self.dbPath) as connection:
             connection.execute(
                 """
-                INSERT INTO chatHistory (timestamp, chatId, username, role, message)
-                VALUES (?, ?, ?, ?, ?)
+                INSERT INTO chatHistory (timestamp, chatId, username, role, message, display_name, user_uid)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     timestamp.isoformat(),
@@ -150,6 +165,8 @@ class ChatHistory:
                     username,
                     role,
                     message,
+                    None if displayName is None else str(displayName),
+                    None if userUid is None else str(userUid),
                 ),
             )
 
@@ -248,9 +265,9 @@ class ChatHistory:
             connection.row_factory = sqlite3.Row
             cursor = connection.execute(
                 """
-                SELECT timestamp, chatId, username, role, message
+                SELECT timestamp, chatId, username, role, message, display_name, user_uid
                 FROM (
-                    SELECT timestamp, chatId, username, role, message
+                    SELECT timestamp, chatId, username, role, message, display_name, user_uid
                     FROM chatHistory
                     WHERE username = ?
                     ORDER BY timestamp DESC

@@ -40,6 +40,9 @@ PROMPT_MODE_WARM = "warm"
 #: Prompt mode: the professional persona shown to others (group chats).
 PROMPT_MODE_COLD = "cold"
 
+#: Persona display name used to label the bot's own messages in transcripts.
+PERSONA_NAME = "月羽雪乃"
+
 #: Ordered prompt sections composing the system prompt (see prompt_*.yaml).
 #: Sections in ``MODED_SECTIONS`` exist as ``*_warm`` / ``*_cold`` keys;
 #: shared sections (e.g. ``identity``) use their bare name.
@@ -234,9 +237,9 @@ class Neko:
             The assembled prompt string with ``{chatHistory}`` and ``{time}``
             placeholders filled.
         """
-        history = str(self.chatHistory.getRecentMessages(userName, historyLimit))
+        history = self._formatHistory(self.chatHistory.getRecentMessages(userName, historyLimit))
         if extraContext:
-            history = f"{history}\n\n{extraContext}"
+            history = f"{history}\n\n{extraContext}" if history else extraContext
         setNekoPrompt = self._assembleSystemPrompt(mode)
         setNekoPrompt = setNekoPrompt.replace("{chatHistory}", history)
         setNekoPrompt = setNekoPrompt.replace("{time}", asctime(localtime(time())))
@@ -247,6 +250,39 @@ class Neko:
             "{searchResults}", self._formatBackgroundBlock("search", searchResults)
         )
         return setNekoPrompt
+
+    @staticmethod
+    def _formatHistory(rows: list) -> str:
+        """Format history rows into readable "name(UID: uid): message" lines.
+
+        Bot messages are labeled with the persona name; user messages carry
+        their display name and stable UID when available.
+
+        Args:
+            rows: Message rows from ChatHistory.getRecentMessages.
+
+        Returns:
+            A newline-joined transcript, or "" when rows is empty.
+        """
+        if not rows:
+            return ""
+        lines: list[str] = []
+        for row in rows:
+            if row.get("role") == "bot":
+                speaker = PERSONA_NAME
+            else:
+                name = str(row.get("display_name") or "").strip()
+                uid = str(row.get("user_uid") or row.get("username") or "").strip()
+                if name and uid:
+                    speaker = f"{name}(UID:{uid})"
+                elif name:
+                    speaker = name
+                elif uid:
+                    speaker = f"用户(UID:{uid})"
+                else:
+                    speaker = "用户"
+            lines.append(f"- {speaker}: {row.get('message', '')}")
+        return "\n".join(lines)
 
     def _formatBackgroundBlock(self, kind: str, content: Optional[str]) -> str:
         """Format an injected background block with a language-appropriate label.

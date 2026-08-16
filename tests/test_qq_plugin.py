@@ -57,6 +57,7 @@ extract_reply_id = _plugin.extract_reply_id
 format_quoted_context = _plugin.format_quoted_context
 summarize_message = _plugin.summarize_message
 extract_sender_name = _plugin.extract_sender_name
+split_on_blank_lines = _plugin.split_on_blank_lines
 
 
 def _obj(seg_type: str, **kwargs):
@@ -182,8 +183,24 @@ class TestFormatGroupContext:
         h.addGroupMessage("g1", "1002", "user", "hi", nickname="江星繁")
 
         ctx = plugin._format_group_context("g1", "1001", 50)
-        assert "江星繁" in ctx
-        assert "1002" not in ctx
+        assert "江星繁(UID:1002): hi" in ctx
+
+    def test_bot_labeled_as_persona(self, tmp_path):
+        plugin = self._make_plugin(tmp_path)
+        h = plugin._chat_history
+        h.addGroupMessage("g1", "123", "bot", "你好喵")
+
+        ctx = plugin._format_group_context("g1", "1001", 50)
+        assert "月羽雪乃: 你好喵" in ctx
+        assert "机器人" not in ctx
+
+    def test_user_without_nickname_uses_uid(self, tmp_path):
+        plugin = self._make_plugin(tmp_path)
+        h = plugin._chat_history
+        h.addGroupMessage("g1", "1002", "user", "hi")
+
+        ctx = plugin._format_group_context("g1", "1001", 50)
+        assert "用户(UID:1002): hi" in ctx
 
 class TestExtractReplyId:
     def test_dict_reply(self):
@@ -303,3 +320,26 @@ class TestExtractSenderName:
 
     def test_none(self):
         assert extract_sender_name(None) is None
+
+
+class TestSplitOnBlankLines:
+    def test_single_newline_kept(self):
+        assert split_on_blank_lines("A\nB") == ["A\nB"]
+
+    def test_blank_line_splits(self):
+        assert split_on_blank_lines("A\n\nB") == ["A", "B"]
+
+    def test_multiple_blank_lines_collapse(self):
+        assert split_on_blank_lines("A\n\n\nB") == ["A", "B"]
+
+    def test_strips_whitespace(self):
+        assert split_on_blank_lines("  A  \n\n  B  ") == ["A", "B"]
+
+    def test_windows_line_endings(self):
+        assert split_on_blank_lines("A\r\n\r\nB") == ["A", "B"]
+
+    def test_empty_text(self):
+        assert split_on_blank_lines("") == []
+
+    def test_trailing_blank_lines_ignored(self):
+        assert split_on_blank_lines("A\n\n") == ["A"]

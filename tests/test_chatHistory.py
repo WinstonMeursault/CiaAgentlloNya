@@ -84,3 +84,35 @@ class TestGroupNickname:
         history.addGroupMessage("g1", "1001", "user", "hello")
         rows = history.getRecentGroupMessages("g1", 10)
         assert rows[0]["nickname"] is None
+
+
+class TestUserDisplayName:
+    def test_display_name_and_uid_roundtrip(self, tmp_path):
+        history = ChatHistory(dbPath=str(tmp_path / "chatHistory.db"))
+        history.addMessage("u1", "user", "hello", displayName="江星繁", userUid="1002")
+        rows = history.getRecentMessages("u1", 10)
+        assert rows[0]["display_name"] == "江星繁"
+        assert rows[0]["user_uid"] == "1002"
+
+    def test_display_name_defaults_none(self, tmp_path):
+        history = ChatHistory(dbPath=str(tmp_path / "chatHistory.db"))
+        history.addMessage("u1", "user", "hello")
+        rows = history.getRecentMessages("u1", 10)
+        assert rows[0]["display_name"] is None
+        assert rows[0]["user_uid"] is None
+
+    def test_migration_adds_columns_to_legacy_db(self, tmp_path):
+        # 旧库（无 display_name/user_uid 列）在打开时应自动迁移补列
+        import sqlite3
+        db = str(tmp_path / "legacy.db")
+        with sqlite3.connect(db) as conn:
+            conn.execute(
+                "CREATE TABLE chatHistory ("
+                "id INTEGER PRIMARY KEY AUTOINCREMENT, timestamp TEXT NOT NULL, "
+                "chatId TEXT, username TEXT NOT NULL, "
+                "role TEXT NOT NULL, message TEXT NOT NULL)"
+            )
+        history = ChatHistory(dbPath=db)
+        history.addMessage("u1", "user", "hello", displayName="江星繁", userUid="1002")
+        rows = history.getRecentMessages("u1", 10)
+        assert rows[0]["display_name"] == "江星繁"

@@ -99,13 +99,35 @@ class TestExtraContext:
             "g1:u1", "你好", historyLimit=7, stream=False, extraContext="GROUP_CONTEXT_MARKER",
         )
         system = payload["messages"][0]["content"]
-        assert "[]\n\nGROUP_CONTEXT_MARKER" in system
+        assert "GROUP_CONTEXT_MARKER" in system
 
     def test_no_extra_context_omits_marker(self, tmp_path: Path):
         neko = Neko(_DummyHistory(), configPath=_make_config(tmp_path))
         payload = neko._buildDeepSeekPayload("g1:u1", "你好", historyLimit=7, stream=False)
         system = payload["messages"][0]["content"]
         assert "GROUP_CONTEXT_MARKER" not in system
+
+
+class TestFormatHistory:
+    def test_user_with_name_and_uid(self, tmp_path: Path):
+        neko = Neko(_DummyHistory(), configPath=_make_config(tmp_path))
+        rows = [
+            {"role": "user", "message": "你好", "display_name": "江星繁", "user_uid": "1002"},
+            {"role": "bot", "message": "你好喵"},
+        ]
+        out = neko._formatHistory(rows)
+        assert "江星繁(UID:1002): 你好" in out
+        assert "月羽雪乃: 你好喵" in out
+
+    def test_empty_returns_empty(self, tmp_path: Path):
+        neko = Neko(_DummyHistory(), configPath=_make_config(tmp_path))
+        assert neko._formatHistory([]) == ""
+
+    def test_user_without_name_uses_uid(self, tmp_path: Path):
+        neko = Neko(_DummyHistory(), configPath=_make_config(tmp_path))
+        rows = [{"role": "user", "message": "x", "display_name": None, "user_uid": "1002"}]
+        out = neko._formatHistory(rows)
+        assert "用户(UID:1002): x" in out
 
 
 class TestSystemPromptAssembly:

@@ -6,6 +6,7 @@ SQLite 持久上下文），与 Telegram 共用同一套人设与后端。
 
 from __future__ import annotations
 
+import re
 import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -148,6 +149,17 @@ def extract_sender_name(sender) -> Optional[str]:
     return str(user_id) if user_id else None
 
 
+def split_on_blank_lines(text: str) -> List[str]:
+    """按空行把文本拆成多段，返回去首尾空白后的非空段列表。
+
+    连续两个及以上换行（即出现空行）视为分隔；单个换行保留在段内，
+    不会触发拆分。例如 ``"A\\n\\nB"`` 拆成 ``["A", "B"]``。
+    """
+    normalized = text.replace("\r\n", "\n").replace("\r", "\n")
+    parts = [part.strip() for part in re.split(r"\n{2,}", normalized)]
+    return [part for part in parts if part]
+
+
 class AiChatPlugin(NcatBotPlugin):
     name = "ai_chat"
     version = "0.4.0"
@@ -245,6 +257,11 @@ class AiChatPlugin(NcatBotPlugin):
     # 事件处理
     # ------------------------------------------------------------------
 
+    async def _reply_text(self, event, text: str) -> None:
+        """按空行拆分文本并逐条回复，避免一条回复里夹着空行。"""
+        for part in split_on_blank_lines(text):
+            await event.reply(part)
+
     async def _resolve_reply_context(self, event, reply_id: str) -> str:
         """拉取被引用消息，格式化为可拼进 prompt 的上下文；失败返回空串。
 
@@ -292,9 +309,19 @@ class AiChatPlugin(NcatBotPlugin):
         except Exception:
             LOG.exception("%s: 群聊上下文写入失败，已忽略", self.name)
 
-    def _record_user_message(self, user_key: str, role: str, message: str, chatId: str) -> None:
+    def _record_user_message(
+        self,
+        user_key: str,
+        role: str,
+        message: str,
+        chatId: str,
+        displayName: Optional[str] = None,
+        userUid: Optional[str] = None,
+    ) -> None:
         """把一条消息写入用户上下文，并按配置清理旧记录。"""
-        self._chat_history.addMessage(user_key, role, message, chatId=chatId)
+        self._chat_history.addMessage(
+            user_key, role, message, chatId=chatId, displayName=displayName, userUid=userUid
+        )
         if self._max_history_rows > 0:
             self._chat_history.pruneMessages(user_key, self._max_history_rows)
 
@@ -336,9 +363,14 @@ class AiChatPlugin(NcatBotPlugin):
         lines = [header]
         for row in filtered:
             if row["role"] == "bot":
-                speaker = "机器人"
+                speaker = "月羽雪乃"
             else:
-                speaker = row.get("nickname") or row["user_id"]
+                name = str(row.get("nickname") or "").strip()
+                uid = str(row.get("user_id") or "").strip()
+                if name:
+                    speaker = f"{name}(UID:{uid})"
+                else:
+                    speaker = f"用户(UID:{uid})"
             lines.append(f"- {speaker}: {row['message']}")
         return "\n".join(lines)
 
@@ -375,7 +407,9 @@ class AiChatPlugin(NcatBotPlugin):
             self._record_group_message(group_id, uin, "user", group_text, nickname)
         # 2) 写入用户上下文（原文，用户维度记忆）
         if text:
-            self._record_user_message(user_key, "user", text, group_id)
+            self._record_user_message(
+                user_key, "user", text, group_id, displayName=nickname, userUid=uin
+            )
 
         # 3) 未 @机器人：到此结束
         if prompt is None:
@@ -425,7 +459,7 @@ class AiChatPlugin(NcatBotPlugin):
 
         self._record_user_message(user_key, "bot", answer, group_id)
         self._record_group_message(group_id, self._bot_uin, "bot", answer)
-        await event.reply(answer)
+        await self._reply_text(event, answer)
 
     @registrar.qq.on_private_message()
     async def on_private_message(self, event: PrivateMessageEvent):
@@ -448,7 +482,7 @@ class AiChatPlugin(NcatBotPlugin):
 
         # 私聊不写群聊上下文，只写用户上下文（key = uin）
         if text:
-            self._record_user_message(uin, "user", text, chatId=uin)
+            self._record_user_message(uin, "user", text, chatId=uin, displayName=nickname, userUid=uin)
 
         prompt = text
         if quoted and prompt:
@@ -490,4 +524,4 @@ class AiChatPlugin(NcatBotPlugin):
             return
 
         self._record_user_message(uin, "bot", answer, chatId=uin)
-        await event.reply(answer)
+        await self._reply_text(event, answer)

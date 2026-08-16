@@ -458,7 +458,7 @@ class Bot:
         """
         try:
             response = await self.neko.askNeko(
-                update.effective_user.full_name, update.message.text
+                str(update.effective_user.id), update.message.text
             )
         except Exception as e:
             self.logger.error(f"Failed to get LLM response: {e}")
@@ -484,13 +484,15 @@ class Bot:
         )
 
         self.chatHistory.addMessage(
-            username=update.effective_user.full_name,
+            username=str(update.effective_user.id),
             role="user",
             message=update.message.text,
             chatId=update.effective_chat.id,
+            displayName=update.effective_user.full_name,
+            userUid=str(update.effective_user.id),
         )
         self.chatHistory.addMessage(
-            username=update.effective_user.full_name,
+            username=str(update.effective_user.id),
             role="bot",
             message=response,
             chatId=update.effective_chat.id,
@@ -519,7 +521,7 @@ class Bot:
 
         try:
             async for delta in self.neko.askNekoStream(
-                update.effective_user.full_name, update.message.text
+                str(update.effective_user.id), update.message.text
             ):
                 buffer += delta
                 now = asyncio.get_running_loop().time()
@@ -567,13 +569,15 @@ class Bot:
         )
 
         self.chatHistory.addMessage(
-            username=update.effective_user.full_name,
+            username=str(update.effective_user.id),
             role="user",
             message=update.message.text,
             chatId=update.effective_chat.id,
+            displayName=update.effective_user.full_name,
+            userUid=str(update.effective_user.id),
         )
         self.chatHistory.addMessage(
-            username=update.effective_user.full_name,
+            username=str(update.effective_user.id),
             role="bot",
             message=accumulatedText,
             chatId=update.effective_chat.id,
