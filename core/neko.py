@@ -61,8 +61,11 @@ MODED_SECTIONS = frozenset(
 #: Kept free of persona so the judge answers "does this need a search?" plainly.
 JUDGE_SYSTEM_PROMPT = (
     "你是查询路由助手。判断用户消息是否需要联网搜索才能可靠回答。\n"
-    "- 需要搜索：涉及实时/最新信息、新闻、事实查证、天气、价格、日期、特定数据等，且仅凭已有知识无法可靠回答。\n"
-    "- 不需要搜索：闲聊、情感倾诉、角色扮演、主观看法、明确基于已有知识的问题。\n"
+    "规则：除「情感类问题」和「时间日期类问题」外，其余全部需要搜索。\n"
+    "- 不需要搜索（needs_search=false）仅限以下两类：\n"
+    "  1. 情感类问题：倾诉、安慰、情绪表达、主观感受、闲聊、角色扮演等。\n"
+    "  2. 时间日期类问题：询问当前时间、今天日期、星期几等（系统已注入当前时间，无需搜索）。\n"
+    "- 除此之外的所有问题，一律返回 needs_search=true。\n"
     '只输出 JSON，格式：{"needs_search": true|false, "query": "改写后的检索词（仅 needs_search=true 时给出）"}'
 )
 
