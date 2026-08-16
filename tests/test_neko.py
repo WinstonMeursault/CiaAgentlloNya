@@ -143,3 +143,33 @@ class TestSystemPromptAssembly:
         neko = Neko(_DummyHistory(), configPath=_make_config(tmp_path))
         assert "主人说" in neko._generateUserPrompt("x", mode="warm")
         assert "对方说" in neko._generateUserPrompt("x", mode="cold")
+
+
+class TestBackgroundInjection:
+    """拆分后：{knowledge}/{searchResults} 占位符被背景信息正确替换。"""
+
+    def test_blocks_injected_with_labels(self, tmp_path: Path):
+        neko = Neko(_DummyHistory(), configPath=_make_config(tmp_path))
+        system = neko._generateSystemPrompt(
+            "g1:u1", historyLimit=7, searchResults="SEARCHBLOCK", knowledge="KNOWBLOCK"
+        )
+        assert "知识库检索结果" in system
+        assert "KNOWBLOCK" in system
+        assert "联网搜索结果" in system
+        assert "SEARCHBLOCK" in system
+
+    def test_empty_blocks_omitted(self, tmp_path: Path):
+        neko = Neko(_DummyHistory(), configPath=_make_config(tmp_path))
+        system = neko._generateSystemPrompt("g1:u1", historyLimit=7)
+        # 占位符必须被替换掉（即使为空），不能残留字面 token
+        assert "{knowledge}" not in system
+        assert "{searchResults}" not in system
+
+    def test_payload_forwards_blocks(self, tmp_path: Path):
+        neko = Neko(_DummyHistory(), configPath=_make_config(tmp_path))
+        payload = neko._buildDeepSeekPayload(
+            "u", "x", historyLimit=5, stream=False, searchResults="SR", knowledge="KB"
+        )
+        system = payload["messages"][0]["content"]
+        assert "SR" in system
+        assert "KB" in system

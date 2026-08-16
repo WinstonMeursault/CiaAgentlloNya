@@ -1,0 +1,4 @@
+# RAG 语义检索的可选依赖（仅当 llm.enhance.rag.enabled=true 时安装）
+# 安装：pip install -r core/requirements-rag.txt
+fastembed
+chromadb

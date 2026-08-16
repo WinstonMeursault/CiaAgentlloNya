@@ -25,6 +25,7 @@ from loguru import logger
 from yaml import safe_load as yamlSafeLoad
 
 from core.chatHistory import ChatHistory
+from core.enhancer import SearchEnhancer
 
 currentDir = osPath.dirname(osPath.realpath(__file__))
 
@@ -140,6 +141,17 @@ class Neko:
             "Content-Type": "application/json",
         }
 
+        enhanceConfig = self.llmConfig.get("enhance") or {}
+        ragConfig = enhanceConfig.get("rag") or {}
+
+        knowledgeBase = None
+        if ragConfig.get("enabled", False):
+            from core.knowledge import KnowledgeBase
+
+            knowledgeBase = KnowledgeBase(ragConfig)
+
+        self.enhancer = SearchEnhancer(knowledgeBase=knowledgeBase)
+
     def _timeout(self) -> aioHttpClientTimeout:
         """Build the aiohttp timeout from the configured ``timeout_seconds``."""
         return aioHttpClientTimeout(total=int(self.llmConfig.get("timeout_seconds", 60)))
@@ -185,6 +197,8 @@ class Neko:
         historyLimit: int,
         extraContext: Optional[str] = None,
         mode: str = PROMPT_MODE_WARM,
+        searchResults: Optional[str] = None,
+        knowledge: Optional[str] = None,
     ) -> str:
         """Generate the persona/system prompt with context and current time.
 
@@ -205,7 +219,33 @@ class Neko:
         setNekoPrompt = self._assembleSystemPrompt(mode)
         setNekoPrompt = setNekoPrompt.replace("{chatHistory}", history)
         setNekoPrompt = setNekoPrompt.replace("{time}", asctime(localtime(time())))
+        setNekoPrompt = setNekoPrompt.replace(
+            "{knowledge}", self._formatBackgroundBlock("knowledge", knowledge)
+        )
+        setNekoPrompt = setNekoPrompt.replace(
+            "{searchResults}", self._formatBackgroundBlock("search", searchResults)
+        )
         return setNekoPrompt
+
+    def _formatBackgroundBlock(self, kind: str, content: Optional[str]) -> str:
+        """Format an injected background block with a language-appropriate label.
+
+        Args:
+            kind: "knowledge" or "search".
+            content: Raw block text (may be empty or None).
+
+        Returns:
+            A labeled block string, or "" when content is empty.
+        """
+        content = (content or "").strip()
+        if not content:
+            return ""
+        language = str(self.llmConfig.get("language", "CN"))
+        if kind == "knowledge":
+            label = "知识库检索结果" if language == "CN" else "Knowledge base"
+        else:
+            label = "联网搜索结果" if language == "CN" else "Web search results"
+        return f"{label}:\n{content}"
 
     def _generateUserPrompt(self, request: str, mode: str = PROMPT_MODE_WARM) -> str:
         """Generate the user message prompt from the incoming request.
@@ -227,6 +267,8 @@ class Neko:
         stream: bool,
         extraContext: Optional[str] = None,
         mode: str = PROMPT_MODE_WARM,
+        searchResults: Optional[str] = None,
+        knowledge: Optional[str] = None,
     ) -> dict:
         """Build the OpenAI-compatible chat/completions payload for DeepSeek."""
         payload = {
@@ -234,7 +276,9 @@ class Neko:
             "messages": [
                 {
                     "role": "system",
-                    "content": self._generateSystemPrompt(userName, historyLimit, extraContext, mode),
+                    "content": self._generateSystemPrompt(
+                        userName, historyLimit, extraContext, mode, searchResults, knowledge
+                    ),
                 },
                 {"role": "user", "content": self._generateUserPrompt(request, mode)},
             ],
@@ -256,9 +300,13 @@ class Neko:
         stream: bool,
         extraContext: Optional[str] = None,
         mode: str = PROMPT_MODE_WARM,
+        searchResults: Optional[str] = None,
+        knowledge: Optional[str] = None,
     ) -> dict:
         """Build the legacy Responses API payload (single-string ``input``)."""
-        prompt = self._generateSystemPrompt(userName, historyLimit, extraContext, mode) + self._generateUserPrompt(request, mode)
+        prompt = self._generateSystemPrompt(
+            userName, historyLimit, extraContext, mode, searchResults, knowledge
+        ) + self._generateUserPrompt(request, mode)
         return {
             "model": self.llmConfig["model"],
             "input": prompt,
@@ -368,11 +416,22 @@ class Neko:
         """
         self.logger.info("Asking Neko...")
 
+        searchResults = await self.enhancer.search(request)
+        knowledge = self.enhancer.retrieve(request)
+
         if self.apiProvider == "DeepSeek":
-            data = self._buildDeepSeekPayload(userName, request, historyLimit, stream=False, extraContext=extraContext, mode=mode)
+            data = self._buildDeepSeekPayload(
+                userName, request, historyLimit, stream=False,
+                extraContext=extraContext, mode=mode,
+                searchResults=searchResults, knowledge=knowledge,
+            )
             parser = self._parseChatCompletions
         else:
-            data = self._buildResponsesPayload(userName, request, historyLimit, stream=False, extraContext=extraContext, mode=mode)
+            data = self._buildResponsesPayload(
+                userName, request, historyLimit, stream=False,
+                extraContext=extraContext, mode=mode,
+                searchResults=searchResults, knowledge=knowledge,
+            )
             parser = self._parseText
 
         async with aioHttpClientSession(timeout=self._timeout()) as session:
@@ -408,11 +467,22 @@ class Neko:
         """
         self.logger.info("Asking Neko with streaming response...")
 
+        searchResults = await self.enhancer.search(request)
+        knowledge = self.enhancer.retrieve(request)
+
         if self.apiProvider == "DeepSeek":
-            data = self._buildDeepSeekPayload(userName, request, historyLimit, stream=True, extraContext=extraContext, mode=mode)
+            data = self._buildDeepSeekPayload(
+                userName, request, historyLimit, stream=True,
+                extraContext=extraContext, mode=mode,
+                searchResults=searchResults, knowledge=knowledge,
+            )
             parser = self._parseChatCompletionsStream
         else:
-            data = self._buildResponsesPayload(userName, request, historyLimit, stream=True, extraContext=extraContext, mode=mode)
+            data = self._buildResponsesPayload(
+                userName, request, historyLimit, stream=True,
+                extraContext=extraContext, mode=mode,
+                searchResults=searchResults, knowledge=knowledge,
+            )
             parser = self._parseTextStream
 
         try:
