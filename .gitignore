@@ -226,3 +226,6 @@ __marimo__/
 /qq/OPERATIONS.md
 /qq/AI Chat/config.yaml
 /qq/Repeater/config.yaml
+
+# SearXNG 本地部署（含随机密钥，勿提交）
+/deploy/searxng/settings.yml

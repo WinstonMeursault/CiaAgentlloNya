@@ -1,0 +1,25 @@
+# 自建 SearXNG：替代不稳定的公用实例（本机部署，仅供 CiaBotlloNya 联网搜索使用）
+#
+# 用法：
+#   1. cp settings.yml.example settings.yml  并把 secret_key 换成随机 hex
+#   2. docker compose up -d
+#   3. docker network connect searxng-net ncatbot   # 让 bot 容器能通过容器名访问
+#   4. 把 bot 的 enhance.search.instance_url 改为 http://searxng:8080
+services:
+  searxng:
+    image: searxng/searxng:latest
+    container_name: searxng
+    restart: unless-stopped
+    environment:
+      - SEARXNG_BASE_URL=http://127.0.0.1:8888/
+    ports:
+      # 宿主机仅回环绑定（对外不暴露）；容器内仍是 SearXNG 默认 8080
+      - "127.0.0.1:8888:8080"
+    volumes:
+      - ./settings.yml:/etc/searxng/settings.yml:ro
+    networks:
+      - searxng-net
+
+networks:
+  searxng-net:
+    name: searxng-net
