@@ -1,7 +1,11 @@
-# SearXNG 设置：继承镜像默认（引擎列表 / JSON 输出格式），仅覆盖密钥与限流。
+# SearXNG 设置：继承镜像默认（引擎列表），仅覆盖密钥、限流与输出格式。
 # 部署前复制为 settings.yml，并把 secret_key 换成随机 32 字节 hex：
 #   python3 -c "import secrets; print(secrets.token_hex(32))"
 use_default_settings: true
 server:
   secret_key: "CHANGE_ME"   # 部署时必须替换
   limiter: false            # 私有单用户实例，关闭限流避免偶发 429
+search:
+  formats:                  # 启用 JSON 输出（bot 的 JSON 优先路径需要）
+    - html
+    - json
