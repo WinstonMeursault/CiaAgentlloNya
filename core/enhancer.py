@@ -54,15 +54,19 @@ class SearchEnhancer:
             self.logger.warning(f"Search judge failed, skipping search: {exc}")
             return ""
         if not verdict or not verdict.get("needs_search", False):
+            self.logger.info("搜索判需：不需要搜索")
             return ""
         query = str(verdict.get("query", "")).strip()
         if not query:
+            self.logger.info("搜索判需：query 为空，跳过搜索")
             return ""
+        self.logger.info(f"搜索判需：需要搜索 → query={query!r}")
         try:
             results = await self.searchProvider.search(query)
         except Exception as exc:
             self.logger.warning(f"Search provider failed: {exc}")
             return ""
+        self.logger.info(f"联网搜索完成：{len(results)} 条结果")
         return self.searchProvider.format(results)
 
     def retrieve(self, request: str) -> str:
@@ -74,4 +78,6 @@ class SearchEnhancer:
         except Exception as exc:
             self.logger.warning(f"RAG retrieval failed: {exc}")
             return ""
+        if results:
+            self.logger.info(f"RAG 检索命中：{len(results)} 条")
         return self.knowledgeBase.format(results)
