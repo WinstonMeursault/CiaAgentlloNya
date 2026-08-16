@@ -15,7 +15,8 @@ section (see ``configExample.yaml`` for the exact shape).
 """
 
 from os import path as osPath
-from typing import Optional, AsyncGenerator
+import re
+from typing import Any, Dict, Optional, AsyncGenerator
 from json import loads as jsonLoads, JSONDecodeError
 
 from time import time, localtime, asctime
@@ -26,6 +27,7 @@ from yaml import safe_load as yamlSafeLoad
 
 from core.chatHistory import ChatHistory
 from core.enhancer import SearchEnhancer
+from core.search import makeSearchProvider
 
 currentDir = osPath.dirname(osPath.realpath(__file__))
 
@@ -52,6 +54,15 @@ PROMPT_SECTION_ORDER = (
 #: Sections that have warm/cold variants in the prompt YAML.
 MODED_SECTIONS = frozenset(
     {"personality", "language_protocol", "behavior_protocol", "constraints"}
+)
+
+#: Neutral query-router system prompt for the two-pass search judge.
+#: Kept free of persona so the judge answers "does this need a search?" plainly.
+JUDGE_SYSTEM_PROMPT = (
+    "你是查询路由助手。判断用户消息是否需要联网搜索才能可靠回答。\n"
+    "- 需要搜索：涉及实时/最新信息、新闻、事实查证、天气、价格、日期、特定数据等，且仅凭已有知识无法可靠回答。\n"
+    "- 不需要搜索：闲聊、情感倾诉、角色扮演、主观看法、明确基于已有知识的问题。\n"
+    '只输出 JSON，格式：{"needs_search": true|false, "query": "改写后的检索词（仅 needs_search=true 时给出）"}'
 )
 
 
@@ -141,8 +152,9 @@ class Neko:
             "Content-Type": "application/json",
         }
 
-        enhanceConfig = self.llmConfig.get("enhance") or {}
-        ragConfig = enhanceConfig.get("rag") or {}
+        self.enhanceConfig = self.llmConfig.get("enhance") or {}
+        searchConfig = self.enhanceConfig.get("search") or {}
+        ragConfig = self.enhanceConfig.get("rag") or {}
 
         knowledgeBase = None
         if ragConfig.get("enabled", False):
@@ -150,7 +162,12 @@ class Neko:
 
             knowledgeBase = KnowledgeBase(ragConfig)
 
-        self.enhancer = SearchEnhancer(knowledgeBase=knowledgeBase)
+        searchProvider = makeSearchProvider(searchConfig)
+        self.enhancer = SearchEnhancer(
+            searchProvider=searchProvider,
+            knowledgeBase=knowledgeBase,
+            judgeFn=self._judgeNeedsSearch if searchProvider else None,
+        )
 
     def _timeout(self) -> aioHttpClientTimeout:
         """Build the aiohttp timeout from the configured ``timeout_seconds``."""
@@ -246,6 +263,58 @@ class Neko:
         else:
             label = "联网搜索结果" if language == "CN" else "Web search results"
         return f"{label}:\n{content}"
+
+    async def _judgeNeedsSearch(self, request: str) -> Dict[str, Any]:
+        """Neutral query-router call deciding whether the request needs search.
+
+        Returns {"needs_search": bool, "query": str}. Any failure degrades to
+        {"needs_search": False, "query": ""} so the persona answer is never
+        blocked by the judge path.
+        """
+        judgeConfig = self.enhanceConfig.get("search", {}).get("judge", {}) or {}
+        maxTokens = int(judgeConfig.get("max_tokens", 128))
+
+        if self.apiProvider == "DeepSeek":
+            payload = {
+                "model": self.llmConfig["model"],
+                "messages": [
+                    {"role": "system", "content": JUDGE_SYSTEM_PROMPT},
+                    {"role": "user", "content": request},
+                ],
+                "stream": False,
+                "max_tokens": maxTokens,
+                "response_format": {"type": "json_object"},
+            }
+            parser = self._parseChatCompletions
+        else:
+            payload = {
+                "model": self.llmConfig["model"],
+                "input": JUDGE_SYSTEM_PROMPT + "\n\n用户消息:\n" + request,
+                "stream": False,
+                "max_tokens": maxTokens,
+            }
+            parser = self._parseText
+
+        try:
+            async with aioHttpClientSession(timeout=self._timeout()) as session:
+                async with session.post(self.postUrl, json=payload, headers=self.postHeaders) as res:
+                    if res.status != 200:
+                        body = await res.text()
+                        self.logger.warning(
+                            f"Judge call returned status {res.status}: {body[:200]}"
+                        )
+                        return {"needs_search": False, "query": ""}
+                    raw = parser(await res.json())
+        except Exception as exc:
+            self.logger.warning(f"Judge call failed: {exc}")
+            return {"needs_search": False, "query": ""}
+
+        verdict = self._parseJudgeJson(raw)
+        needs = bool(verdict.get("needs_search", False))
+        query = str(verdict.get("query", "")).strip()
+        if not needs or not query:
+            return {"needs_search": False, "query": ""}
+        return {"needs_search": True, "query": query}
 
     def _generateUserPrompt(self, request: str, mode: str = PROMPT_MODE_WARM) -> str:
         """Generate the user message prompt from the incoming request.
@@ -387,6 +456,29 @@ class Neko:
         if obj.get("type") == "response.output_text.delta":
             return obj.get("delta")
         return None
+
+    @staticmethod
+    def _parseJudgeJson(text: str) -> Dict[str, Any]:
+        """Parse the judge's JSON output defensively.
+
+        Tries a direct json.loads first, then falls back to extracting the
+        first {...} substring. Returns {} on any failure so callers can treat
+        it as "no search needed".
+        """
+        text = (text or "").strip()
+        if not text:
+            return {}
+        try:
+            obj = jsonLoads(text)
+        except JSONDecodeError:
+            match = re.search(r"\{.*\}", text, re.DOTALL)
+            if not match:
+                return {}
+            try:
+                obj = jsonLoads(match.group(0))
+            except JSONDecodeError:
+                return {}
+        return obj if isinstance(obj, dict) else {}
 
     # ------------------------------------------------------------------
     # Public API

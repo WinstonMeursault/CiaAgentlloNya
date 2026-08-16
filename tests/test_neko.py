@@ -1,5 +1,6 @@
 """Unit tests for the DeepSeek (chat/completions) backend of core.neko.Neko."""
 
+import asyncio
 from pathlib import Path
 
 import pytest
@@ -173,3 +174,141 @@ class TestBackgroundInjection:
         system = payload["messages"][0]["content"]
         assert "SR" in system
         assert "KB" in system
+
+
+class TestParseJudgeJson:
+    def test_valid_json(self):
+        assert Neko._parseJudgeJson('{"needs_search": true, "query": "x"}') == {
+            "needs_search": True,
+            "query": "x",
+        }
+
+    def test_extra_text_falls_back(self):
+        assert Neko._parseJudgeJson('好的：{"needs_search": false, "query": ""}') == {
+            "needs_search": False,
+            "query": "",
+        }
+
+    def test_invalid_returns_empty(self):
+        assert Neko._parseJudgeJson("not json at all") == {}
+
+    def test_non_dict_returns_empty(self):
+        assert Neko._parseJudgeJson('["a"]') == {}
+
+    def test_empty_returns_empty(self):
+        assert Neko._parseJudgeJson("") == {}
+
+
+class _JudgeResp:
+    def __init__(self, status=200, content=None):
+        self.status = status
+        self._content = content
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *args):
+        return False
+
+    async def json(self):
+        return {"choices": [{"message": {"content": self._content}}]}
+
+    async def text(self):
+        return "err"
+
+
+class _JudgeSession:
+    last_instance = None
+
+    def __init__(self, timeout=None):
+        self.payload = None
+        _JudgeSession.last_instance = self
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *args):
+        return False
+
+    def post(self, url, json=None, headers=None):
+        self.payload = json
+        return _JudgeSession.next_resp
+
+
+class TestJudgeNeedsSearch:
+    def _patch(self, monkeypatch, resp):
+        _JudgeSession.next_resp = resp
+        monkeypatch.setattr("core.neko.aioHttpClientSession", _JudgeSession)
+
+    def test_parses_verdict(self, monkeypatch, tmp_path: Path):
+        self._patch(
+            monkeypatch, _JudgeResp(200, '{"needs_search": true, "query": "上海 天气"}')
+        )
+        neko = Neko(_DummyHistory(), configPath=_make_config(tmp_path))
+        verdict = asyncio.run(neko._judgeNeedsSearch("上海今天冷不冷"))
+        assert verdict == {"needs_search": True, "query": "上海 天气"}
+
+    def test_payload_shape(self, monkeypatch, tmp_path: Path):
+        self._patch(monkeypatch, _JudgeResp(200, '{"needs_search": false, "query": ""}'))
+        neko = Neko(_DummyHistory(), configPath=_make_config(tmp_path))
+        assert asyncio.run(neko._judgeNeedsSearch("你好")) == {
+            "needs_search": False,
+            "query": "",
+        }
+        payload = _JudgeSession.last_instance.payload
+        assert payload["response_format"] == {"type": "json_object"}
+        assert payload["max_tokens"] == 128
+        assert payload["stream"] is False
+        assert payload["messages"][0]["role"] == "system"
+        assert "查询路由" in payload["messages"][0]["content"]
+        assert payload["messages"][1]["content"] == "你好"
+        # 判需调用不带人设思考开关
+        assert "thinking" not in payload
+        assert "reasoning_effort" not in payload
+
+    def test_non_200_degrades(self, monkeypatch, tmp_path: Path):
+        self._patch(monkeypatch, _JudgeResp(500))
+        neko = Neko(_DummyHistory(), configPath=_make_config(tmp_path))
+        assert asyncio.run(neko._judgeNeedsSearch("x")) == {
+            "needs_search": False,
+            "query": "",
+        }
+
+    def test_empty_query_degrades(self, monkeypatch, tmp_path: Path):
+        self._patch(monkeypatch, _JudgeResp(200, '{"needs_search": true, "query": "  "}'))
+        neko = Neko(_DummyHistory(), configPath=_make_config(tmp_path))
+        assert asyncio.run(neko._judgeNeedsSearch("x")) == {
+            "needs_search": False,
+            "query": "",
+        }
+
+
+class TestEnhancerWiring:
+    def test_disabled_by_default(self, tmp_path: Path):
+        neko = Neko(_DummyHistory(), configPath=_make_config(tmp_path))
+        assert neko.enhancer.searchProvider is None
+        assert neko.enhancer.judgeFn is None
+        assert neko.enhancer.knowledgeBase is None
+
+    def test_search_wired_when_enabled(self, tmp_path: Path):
+        cfg = tmp_path / "config.yaml"
+        cfg.write_text(
+            "llm:\n"
+            "  api_provider: DeepSeek\n"
+            "  base_url: https://api.deepseek.com\n"
+            "  api_key: sk-test\n"
+            "  model: deepseek-v4-flash\n"
+            "  max_tokens: 512\n"
+            "  timeout_seconds: 30\n"
+            "  language: CN\n"
+            "  enhance:\n"
+            "    search:\n"
+            "      enabled: true\n"
+            "      provider: searxng\n"
+            "      instance_url: https://searx.be\n",
+            encoding="utf-8",
+        )
+        neko = Neko(_DummyHistory(), configPath=str(cfg))
+        assert neko.enhancer.searchProvider is not None
+        assert neko.enhancer.judgeFn is not None
+        assert neko.enhancer.knowledgeBase is None

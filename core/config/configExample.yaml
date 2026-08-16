@@ -25,6 +25,15 @@ llm:
 
   # 可选增强（缺失整段即全部禁用，向后兼容）
   enhance:
+    search:
+      enabled: false
+      provider: searxng             # 已定：SearXNG 公用实例
+      instance_url: https://searx.be # 公用实例（可换）
+      language: zh-CN               # 检索语言
+      max_results: 3
+      timeout_seconds: 10
+      judge:
+        max_tokens: 128             # 判需调用输出上限（越小越快）
     rag:
       enabled: false
       embedding_provider: fastembed   # fastembed | sentence_transformers | openai

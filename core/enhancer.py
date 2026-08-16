@@ -12,6 +12,7 @@ from typing import Any, Awaitable, Callable, Dict, Optional
 from loguru import logger
 
 from core.knowledge import KnowledgeBase
+from core.search import SearchProvider
 
 #: Judge callback signature: (request) -> {"needs_search": bool, "query": str}.
 JudgeFn = Callable[[str], Awaitable[Dict[str, Any]]]
@@ -22,15 +23,15 @@ class SearchEnhancer:
 
     def __init__(
         self,
-        searchProvider: Optional[Any] = None,
+        searchProvider: Optional[SearchProvider] = None,
         knowledgeBase: Optional[KnowledgeBase] = None,
         judgeFn: Optional[JudgeFn] = None,
     ) -> None:
         """Wire the optional search provider, RAG base, and judge callback.
 
         Args:
-            searchProvider: Search backend (duck-typed: async "search" +
-                "format"); "None" disables web search.
+            searchProvider: Search backend implementing "SearchProvider";
+                "None" disables web search.
             knowledgeBase: RAG backend; "None" disables knowledge retrieval.
             judgeFn: Async judge callback deciding whether to search.
         """
