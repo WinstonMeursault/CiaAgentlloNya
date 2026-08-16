@@ -88,6 +88,8 @@ You can also run it as a module from the repository root: `python -m telegram.bo
 
 - [x] Telegram Bot
 - [x] QQ Bot
+- [ ] Web search (planned) — see `docs/search-rag-design.md`
+- [ ] RAG semantic retrieval (planned) — see `docs/search-rag-design.md`
 
 ## License
 
