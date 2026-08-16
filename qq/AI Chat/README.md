@@ -17,6 +17,8 @@ LLM 后端已统一到共享 [`core/`](../../core/)（`Neko` + `ChatHistory`）�
 - 高权限用户组（`admin_uins`）不限次数
 - 无限额群（`unlimited_groups`）：该群内所有成员的问答均不记入额度，也不影响他们在其他群聊/私聊的额度计算
 - 普通用户每天（北京时间 UTC+8）最多 10 次，超出后回复固定道歉语
+- 联网搜索（`enhance.search`）：默认判需——除情感类、时间日期类问题外一律联网，经自建 SearXNG 检索后把结果注入人设「背景信息」
+- RAG 语义检索（`enhance.rag`）：本地 fastembed（BGE-small-zh-v1.5）+ chromadb，命中时把文档内容注入背景（`doc_dir` 未放文档则自然无命中）
 
 ## 配置
 
@@ -30,6 +32,8 @@ LLM 后端已统一到共享 [`core/`](../../core/)（`Neko` + `ChatHistory`）�
 ## 部署注意
 
 插件依赖 `core` 包。推荐把仓库 `core/` 目录复制到 `plugins/AI Chat/core/`（随 `plugins/` 挂载一起持久化），并在容器内准备好 `core/config/config.yaml`。详见 [`qq/OPERATIONS.md`](../OPERATIONS.md)。
+
+联网搜索依赖自建 SearXNG 容器（`searxng-net` 网络、`http://searxng:8080`），一键部署见 [`deploy/searxng/`](../../deploy/searxng/)；详细运维见 [`qq/OPERATIONS.md`](../OPERATIONS.md)。
 
 ## 说明
 

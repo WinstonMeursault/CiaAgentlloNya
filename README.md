@@ -18,14 +18,22 @@ This project is a nekomimi (cat-girl) chatbot powered by an online LLM. It is de
 ```text
 CiaBotlloNya/
 ├── core/                     # Shared, platform-agnostic package
-│   ├── neko.py               # Nekomimi LLM API client
+│   ├── neko.py               # Nekomimi LLM API client (with two-pass judge)
 │   ├── chatHistory.py        # SQLite-backed chat history storage
+│   ├── search.py             # Search provider abstraction (SearXNG, JSON-first + HTML fallback)
+│   ├── knowledge.py          # RAG knowledge base (fastembed + chromadb)
+│   ├── enhancer.py           # SearchEnhancer: judge → retrieve → format
 │   ├── requirements.txt      # Shared dependencies
+│   ├── requirements-rag.txt  # Optional RAG dependencies (fastembed, chromadb)
 │   └── config/               # Shared LLM configuration
 │       ├── configExample.yaml
 │       ├── inf.yaml
 │       ├── prompt_CN.yaml
 │       └── prompt_EN.yaml
+├── deploy/                   # Deployment config
+│   └── searxng/              # Self-hosted SearXNG (docker-compose one-shot)
+│       ├── docker-compose.yml
+│       └── settings.yml.example
 ├── telegram/                 # Telegram bot
 │   ├── bot.py                # Telegram bot application
 │   ├── requirements.txt      # Telegram dependencies
@@ -83,6 +91,15 @@ python telegram/bot.py
 ```
 
 You can also run it as a module from the repository root: `python -m telegram.bot`.
+
+## Web Search & RAG (opt-in enhancements)
+
+`core/` ships two opt-in enhancements, configured under `llm.enhance` in `core/config/config.yaml`:
+
+- **Web search** (`enhance.search`): two-pass — a neutral router decides whether to search, then fetches via SearXNG and injects results into `{searchResults}`. Default policy: search everything except emotional and time/date questions.
+- **RAG semantic retrieval** (`enhance.rag`): local fastembed (BGE-small-zh-v1.5) + chromadb, injecting document content into `{knowledge}`.
+
+A self-hosted SearXNG is recommended: `deploy/searxng/` provides a one-shot docker-compose deployment (host port `127.0.0.1:8888`, the bot container reaches it at `http://searxng:8080` over the `searxng-net` network). See [`docs/search-rag-design.md`](docs/search-rag-design.md).
 
 ## Roadmap
 

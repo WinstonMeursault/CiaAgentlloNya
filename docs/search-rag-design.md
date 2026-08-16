@@ -1,6 +1,6 @@
 # core 模块增强设计：联网搜索与 RAG 知识库检索
 
-> 状态：**已实现**（Phase 1 RAG + Phase 2 联网搜索，均 opt-in、默认关闭） · 本文为设计与实现依据。
+> 状态：**已实现并部署**（Phase 1 RAG + Phase 2 联网搜索，opt-in；生产已开启搜索并自建 SearXNG） · 本文为设计与实现依据。
 
 ## 1. 背景与结论
 
@@ -132,8 +132,11 @@ flowchart LR
 
 ```text
 你是查询路由助手。判断用户消息是否需要联网搜索才能可靠回答。
-- 需要搜索：涉及实时/最新信息、新闻、事实查证、天气、价格、日期、特定数据等，且仅凭已有知识无法可靠回答。
-- 不需要搜索：闲聊、情感倾诉、角色扮演、主观看法、明确基于已有知识的问题。
+规则：除「情感类问题」和「时间日期类问题」外，其余全部需要搜索。
+- 不需要搜索（needs_search=false）仅限以下两类：
+  1. 情感类问题：倾诉、安慰、情绪表达、主观感受、闲聊、角色扮演等。
+  2. 时间日期类问题：询问当前时间、今天日期、星期几等（系统已注入当前时间，无需搜索）。
+- 除此之外的所有问题，一律返回 needs_search=true。
 只输出 JSON，格式：{"needs_search": true|false, "query": "改写后的检索词（仅 needs_search=true 时给出）"}
 ```
 
@@ -168,15 +171,16 @@ flowchart LR
 - 搜索失败 / 超时 / 无结果 → `searchBlock` 为空，照常回答。
 - 绝不因搜索路径失败阻断人设回答。
 
-### 4.8 搜索供应商（已定：SearXNG 公用实例）
+### 4.8 搜索供应商（最终落地：自建 SearXNG，Docker 部署）
 
-采用 SearXNG 的公用实例（暂不自建），走其 JSON API：
+最终放弃公用实例，改为**本机 Docker 自建 SearXNG**，走其 JSON API：
 
+- 部署：`deploy/searxng/docker-compose.yml`（官方 `searxng/searxng:latest`，宿主端口 `127.0.0.1:8888→8080`，`restart: unless-stopped`，需在 `settings.yml` 显式启用 `search.formats: [html, json]`）。
 - 请求：GET `{instance_url}/search?q={query}&format=json&language=zh-CN`（`language`/`safesearch`/`time_range` 可选）。
 - 响应：`{"results": [{"title", "url", "content", "engine", ...}, ...]}`，取 `title`/`url`/`content` 作为结果。
-- 实例地址可配置（示例 `https://searx.be`）；公用实例为第三方维护，可能限流或停用 JSON（见 searx.space 的 json 列），故 `instance_url` 做成可配置项，必要时换实例或后续再自建。
+- 实例地址可配置；生产 `instance_url` 设为 `http://searxng:8080`（bot 容器经 `searxng-net` 网络用容器名访问）。
 
-> 落地调整：实测公用实例普遍禁用 JSON（59 个实例 0 个支持），故客户端改为「先 JSON、失败回退解析 HTML 结果标记」；`instance_url` 当前配置为 `https://search.mectov.my.id`（少数仍返回真实 HTML 结果的实例）。
+> 历史：曾用公用实例（`search.mectov.my.id`），但公用实例普遍禁用 JSON（59 个实例 0 个支持）且连接不稳定（成功率约 50%），故客户端保留「先 JSON、失败回退解析 HTML 结果标记」的兼容逻辑，并最终自建稳定实例。
 
 ## 5. 配置草案
 
@@ -189,7 +193,7 @@ llm:
     search:
       enabled: false
       provider: searxng             # 已定：SearXNG
-      instance_url: https://searx.be # SearXNG 公用实例（可换）
+      instance_url: http://searxng:8080 # 自建 SearXNG（deploy/searxng 一键部署）
       language: zh-CN               # 检索语言（可选）
       max_results: 3
       timeout_seconds: 10
@@ -249,7 +253,7 @@ flowchart LR
 | Phase 2 | 联网搜索（两段式）：`search.py` + `_judgeNeedsSearch` + `{searchResults}` 注入 | 供应商已定（SearXNG 公用实例） |
 | Phase 3 | 混合检索（向量 + FTS5 关键词），可选 Agentic 工具化 | Phase 1/2 |
 
-> Phase 1、Phase 2 已实现并落地（core/knowledge.py、core/search.py、core/enhancer.py、core/neko.py 的占位符注入与两段式判需）；Phase 3 混合检索仍为规划。
+> Phase 1、Phase 2 已实现并落地（core/knowledge.py、core/search.py、core/enhancer.py、core/neko.py 的占位符注入与两段式判需）；搜索已切换为自建 SearXNG（deploy/searxng）；Phase 3 混合检索仍为规划。
 
 ## 9. 决策清单（已全部敲定）
 
