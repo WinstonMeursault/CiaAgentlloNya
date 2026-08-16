@@ -37,12 +37,12 @@ DEFAULT_HISTORY_LIMIT = 20
 
 #: Prompt mode: the warm persona shown to the Master.
 PROMPT_MODE_WARM = "warm"
-#: Prompt mode: the cold persona shown to strangers.
+#: Prompt mode: the professional persona shown to others (group chats).
 PROMPT_MODE_COLD = "cold"
 
 #: Ordered prompt sections composing the system prompt (see prompt_*.yaml).
 #: Sections in ``MODED_SECTIONS`` exist as ``*_warm`` / ``*_cold`` keys;
-#: shared sections (e.g. ``identity``, ``context``) use their bare name.
+#: shared sections (e.g. ``identity``) use their bare name.
 PROMPT_SECTION_ORDER = (
     "identity",
     "personality",
@@ -54,7 +54,7 @@ PROMPT_SECTION_ORDER = (
 
 #: Sections that have warm/cold variants in the prompt YAML.
 MODED_SECTIONS = frozenset(
-    {"personality", "language_protocol", "behavior_protocol", "constraints"}
+    {"personality", "language_protocol", "behavior_protocol", "constraints", "context"}
 )
 
 #: Neutral query-router system prompt for the two-pass search judge.
@@ -82,8 +82,8 @@ class Neko:
         llmConfig: Configuration settings loaded from config.yaml ``llm`` section.
         nekomimiPrompt: Sectioned prompt templates loaded from the language-specific
             YAML file. Sections are keyed as *_warm (for Master) / *_cold (for
-            strangers): identity, personality, language_protocol, behavior_protocol,
-            constraints, plus shared context and askNeko.
+            others): identity, personality, language_protocol, behavior_protocol,
+            context, plus askNeko.
         apiProvider: Provider name deciding which request/response format to use.
         postUrl: API endpoint URL for the configured provider.
         postHeaders: HTTP headers including authorization token.
