@@ -19,7 +19,7 @@ llm:
   thinking:
     type: enabled
   reasoning_effort: medium
-  max_tokens: 1024
+  max_tokens: 16384
   timeout_seconds: 60
   language: CN
 
