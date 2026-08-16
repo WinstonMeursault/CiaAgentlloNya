@@ -3,6 +3,7 @@
 import asyncio
 from pathlib import Path
 
+import aiohttp
 import pytest
 
 from core.neko import Neko
@@ -312,3 +313,77 @@ class TestEnhancerWiring:
         assert neko.enhancer.searchProvider is not None
         assert neko.enhancer.judgeFn is not None
         assert neko.enhancer.knowledgeBase is None
+
+
+class TestPostJsonRetry:
+    """拆分后：answer 调用对瞬时连接错误做一次重试。"""
+
+    def test_retries_on_disconnect(self, monkeypatch, tmp_path: Path):
+        calls = {"n": 0}
+
+        class Resp:
+            status = 200
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *args):
+                return False
+
+            async def json(self):
+                return {"ok": True}
+
+            async def text(self):
+                return ""
+
+        class Session:
+            def __init__(self, timeout=None):
+                pass
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *args):
+                return False
+
+            def post(self, url, json=None, headers=None):
+                calls["n"] += 1
+                if calls["n"] == 1:
+                    raise aiohttp.ClientError("Server disconnected")
+                return Resp()
+
+        monkeypatch.setattr("core.neko.aioHttpClientSession", Session)
+        neko = Neko(_DummyHistory(), configPath=_make_config(tmp_path))
+        result = asyncio.run(neko._postJson({"model": "deepseek-v4-flash"}))
+        assert result == {"ok": True}
+        assert calls["n"] == 2
+
+    def test_non_200_returns_none(self, monkeypatch, tmp_path: Path):
+        class Resp:
+            status = 500
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *args):
+                return False
+
+            async def text(self):
+                return "err"
+
+        class Session:
+            def __init__(self, timeout=None):
+                pass
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *args):
+                return False
+
+            def post(self, url, json=None, headers=None):
+                return Resp()
+
+        monkeypatch.setattr("core.neko.aioHttpClientSession", Session)
+        neko = Neko(_DummyHistory(), configPath=_make_config(tmp_path))
+        assert asyncio.run(neko._postJson({"model": "x"})) is None

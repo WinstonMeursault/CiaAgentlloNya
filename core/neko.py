@@ -22,6 +22,7 @@ from json import loads as jsonLoads, JSONDecodeError
 from time import time, localtime, asctime
 from aiohttp import ClientSession as aioHttpClientSession
 from aiohttp import ClientTimeout as aioHttpClientTimeout
+from aiohttp import ClientError as aioHttpClientError
 from loguru import logger
 from yaml import safe_load as yamlSafeLoad
 
@@ -264,6 +265,38 @@ class Neko:
             label = "联网搜索结果" if language == "CN" else "Web search results"
         return f"{label}:\n{content}"
 
+    async def _postJson(self, data: dict, attempts: int = 2) -> Optional[dict]:
+        """POST a JSON payload to the LLM endpoint and return the parsed body.
+
+        Retries once on transient connection errors (e.g. ServerDisconnectedError)
+        so a single dropped connection does not fail the whole turn. Returns None
+        on any failure (non-200 or persistent connection error).
+        """
+        lastExc = None
+        for attempt in range(attempts):
+            try:
+                async with aioHttpClientSession(timeout=self._timeout()) as session:
+                    async with session.post(
+                        self.postUrl, json=data, headers=self.postHeaders
+                    ) as res:
+                        if res.status != 200:
+                            body = await res.text()
+                            self.logger.error(
+                                f"LLM API returned status {res.status}: {body[:200]}"
+                            )
+                            return None
+                        return await res.json()
+            except aioHttpClientError as exc:
+                lastExc = exc
+                self.logger.warning(
+                    f"LLM 连接异常，重试 {attempt + 1}/{attempts}: {exc}"
+                )
+            except Exception as exc:
+                self.logger.warning(f"LLM 响应解析失败: {exc}")
+                return None
+        self.logger.warning(f"LLM 连接持续异常，放弃: {lastExc}")
+        return None
+
     async def _judgeNeedsSearch(self, request: str) -> Dict[str, Any]:
         """Neutral query-router call deciding whether the request needs search.
 
@@ -295,19 +328,10 @@ class Neko:
             }
             parser = self._parseText
 
-        try:
-            async with aioHttpClientSession(timeout=self._timeout()) as session:
-                async with session.post(self.postUrl, json=payload, headers=self.postHeaders) as res:
-                    if res.status != 200:
-                        body = await res.text()
-                        self.logger.warning(
-                            f"Judge call returned status {res.status}: {body[:200]}"
-                        )
-                        return {"needs_search": False, "query": ""}
-                    raw = parser(await res.json())
-        except Exception as exc:
-            self.logger.warning(f"Judge call failed: {exc}")
+        resp = await self._postJson(payload)
+        if resp is None:
             return {"needs_search": False, "query": ""}
+        raw = parser(resp)
 
         verdict = self._parseJudgeJson(raw)
         needs = bool(verdict.get("needs_search", False))
@@ -526,13 +550,10 @@ class Neko:
             )
             parser = self._parseText
 
-        async with aioHttpClientSession(timeout=self._timeout()) as session:
-            async with session.post(self.postUrl, json=data, headers=self.postHeaders) as res:
-                if res.status != 200:
-                    body = await res.text()
-                    self.logger.error(f"LLM API returned status {res.status}: {body}")
-                    return ""
-                return parser(await res.json())
+        resp = await self._postJson(data)
+        if resp is None:
+            return ""
+        return parser(resp)
 
     async def askNekoStream(
         self,
