@@ -176,6 +176,8 @@ flowchart LR
 - 响应：`{"results": [{"title", "url", "content", "engine", ...}, ...]}`，取 `title`/`url`/`content` 作为结果。
 - 实例地址可配置（示例 `https://searx.be`）；公用实例为第三方维护，可能限流或停用 JSON（见 searx.space 的 json 列），故 `instance_url` 做成可配置项，必要时换实例或后续再自建。
 
+> 落地调整：实测公用实例普遍禁用 JSON（59 个实例 0 个支持），故客户端改为「先 JSON、失败回退解析 HTML 结果标记」；`instance_url` 当前配置为 `https://search.mectov.my.id`（少数仍返回真实 HTML 结果的实例）。
+
 ## 5. 配置草案
 
 在 `llm` 下新增可选 `enhance` 段（**缺失即全部禁用**，向后兼容）：

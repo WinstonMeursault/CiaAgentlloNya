@@ -1,6 +1,7 @@
 """Unit tests for core.search (SearXNG provider + factory)."""
 
 import asyncio
+import json
 
 from core import search as search_module
 from core.search import SearXNGSearch, makeSearchProvider
@@ -11,9 +12,9 @@ def _run(coro):
 
 
 class _Resp:
-    def __init__(self, status=200, data=None):
+    def __init__(self, status=200, body="{}"):
         self.status = status
-        self._data = data or {}
+        self._body = body
 
     async def __aenter__(self):
         return self
@@ -22,15 +23,13 @@ class _Resp:
         return False
 
     async def json(self):
-        return self._data
+        return json.loads(self._body)
 
     async def text(self):
-        return "error body"
+        return self._body
 
 
 class _Session:
-    """Fake aiohttp.ClientSession; returns a canned response and records GET."""
-
     def __init__(self, timeout=None):
         self.requested = None
 
@@ -69,25 +68,59 @@ class TestFormat:
         assert "[1] t\nc" in out
 
 
+class TestParseHtmlResults:
+    def test_parses_article(self):
+        html = (
+            '<article class="result">'
+            '<h3><a href="https://e.com/p" rel="noreferrer">Title &amp; Co</a></h3>'
+            '<p class="content">Some <b>bold</b> text.<br>More</p>'
+            '</article>'
+        )
+        assert SearXNGSearch._parseHtmlResults(html) == [
+            {
+                "title": "Title & Co",
+                "url": "https://e.com/p",
+                "content": "Some bold text. More",
+                "engine": "",
+            }
+        ]
+
+    def test_no_articles_returns_empty(self):
+        assert SearXNGSearch._parseHtmlResults("<html><body>challenge</body></html>") == []
+
+
 class TestSearch:
     def _patch(self, monkeypatch, resp):
         _Session.next_resp = resp
         monkeypatch.setattr("core.search.aiohttp.ClientSession", _Session)
 
-    def test_happy_path(self, monkeypatch):
-        resp = _Resp(200, {"results": [{"title": "t", "url": "u", "content": "c", "engine": "e"}]})
-        self._patch(monkeypatch, resp)
+    def test_happy_path_json(self, monkeypatch):
+        body = json.dumps({"results": [{"title": "t", "url": "u", "content": "c", "engine": "e"}]})
+        self._patch(monkeypatch, _Resp(200, body))
         results = _run(SearXNGSearch().search("hello"))
         assert results == [{"title": "t", "url": "u", "content": "c", "engine": "e"}]
 
     def test_truncates_to_max_results(self, monkeypatch):
-        results_data = {"results": [{"title": f"t{i}"} for i in range(10)]}
-        self._patch(monkeypatch, _Resp(200, results_data))
+        body = json.dumps({"results": [{"title": f"t{i}"} for i in range(10)]})
+        self._patch(monkeypatch, _Resp(200, body))
         results = _run(SearXNGSearch(maxResults=3).search("hello"))
         assert len(results) == 3
 
+    def test_html_fallback(self, monkeypatch):
+        html = (
+            '<article class="result">'
+            '<h3><a href="https://e.com/p">HTML Title</a></h3>'
+            '<p class="content">HTML body</p>'
+            '</article>'
+        )
+        self._patch(monkeypatch, _Resp(200, html))
+        results = _run(SearXNGSearch().search("hello"))
+        assert results == [
+            {"title": "HTML Title", "url": "https://e.com/p", "content": "HTML body", "engine": ""}
+        ]
+
     def test_non_200_returns_empty(self, monkeypatch):
-        self._patch(monkeypatch, _Resp(500))
+        self._patch(monkeypatch, _Resp(500, "err"))
         assert _run(SearXNGSearch().search("x")) == []
 
     def test_exception_returns_empty(self, monkeypatch):
