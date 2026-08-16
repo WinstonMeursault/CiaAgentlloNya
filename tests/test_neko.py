@@ -133,18 +133,35 @@ class TestSystemPromptAssembly:
         neko = Neko(_DummyHistory(), configPath=_make_config(tmp_path))
         system = neko._generateSystemPrompt("g1:u1", historyLimit=7)
         assert "热情模式" in system
-        assert "高冷模式" not in system
+        assert "专业模式" not in system
 
     def test_cold_mode_uses_cold_sections(self, tmp_path: Path):
         neko = Neko(_DummyHistory(), configPath=_make_config(tmp_path))
         system = neko._generateSystemPrompt("g1:u1", historyLimit=7, mode="cold")
-        assert "高冷模式" in system
+        assert "专业模式" in system
         assert "热情模式" not in system
 
     def test_user_prompt_follows_mode(self, tmp_path: Path):
         neko = Neko(_DummyHistory(), configPath=_make_config(tmp_path))
         assert "主人说" in neko._generateUserPrompt("x", mode="warm")
         assert "对方说" in neko._generateUserPrompt("x", mode="cold")
+
+    def test_cold_mode_excludes_warm_markers(self, tmp_path: Path):
+        neko = Neko(_DummyHistory(), configPath=_make_config(tmp_path))
+        system = neko._generateSystemPrompt("g1:u1", historyLimit=7, mode="cold")
+        assert "专业模式" in system
+        assert "热情模式" not in system
+        assert "高冷模式" not in system
+
+    def test_context_follows_mode(self, tmp_path: Path):
+        neko = Neko(_DummyHistory(), configPath=_make_config(tmp_path))
+        warm = neko._assembleSystemPrompt("warm")
+        cold = neko._assembleSystemPrompt("cold")
+        assert "【记忆与连续性" in warm
+        assert "【记忆与连续性" in cold
+        assert "上次主人也说过这个喵~" in warm
+        assert "上次主人也说过这个喵~" not in cold
+        assert "上次也聊过这个话题" in cold
 
 
 class TestBackgroundInjection:
